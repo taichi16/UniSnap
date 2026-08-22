@@ -1116,17 +1116,36 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   };
 
   const handleCopyOnly = async () => {
+    console.debug("[clipboard-ui] copy start", {
+      hasCanvas: Boolean(canvasRef.current),
+      hasCropRect: Boolean(cropRect),
+      cropRect,
+      imageLoaded,
+    });
     const base64 = getCroppedCanvasBase64();
-    if (!base64) return;
+    if (!base64) {
+      const reason = !canvasRef.current
+        ? "編輯畫布尚未建立"
+        : !cropRect
+          ? "尚未建立可複製的選取範圍"
+          : "目前畫面尚未完成載入";
+      console.error("[clipboard-ui] no image data", reason);
+      showToast(`複製失敗：${reason}`);
+      return;
+    }
 
     try {
+      console.debug("[clipboard-ui] invoking copy_screenshot_to_clipboard", {
+        base64Chars: base64.length,
+      });
       await invoke("copy_screenshot_to_clipboard", {
         base64Image: base64,
       });
+      console.debug("[clipboard-ui] copy command succeeded");
       showToast("已複製截圖到剪貼簿！可直接貼上使用 (Cmd+V)");
     } catch (err) {
       console.error("Copy error:", err);
-      showToast("複製到剪貼簿失敗");
+      showToast(`複製到剪貼簿失敗：${String(err)}`);
     }
   };
 

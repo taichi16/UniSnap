@@ -710,19 +710,34 @@ pub fn inspect_saved_file(path: String) -> Result<SavedFileInfo, String> {
 pub fn copy_screenshot_to_clipboard(base64_image: String) -> Result<(), String> {
     use arboard::{Clipboard, ImageData};
 
+    eprintln!(
+        "[clipboard] copy request base64_chars={}",
+        base64_image.len()
+    );
     let bytes = decode_data_url(&base64_image)?;
+    eprintln!("[clipboard] data-url decoded bytes={}", bytes.len());
     let rgba = image::load_from_memory(&bytes)
         .map_err(|e| format!("Failed to parse image for clipboard: {}", e))?
         .to_rgba8();
     let (width, height) = rgba.dimensions();
-    let mut clipboard = Clipboard::new().map_err(|e| format!("Clipboard error: {}", e))?;
+    eprintln!("[clipboard] image decoded width={} height={}", width, height);
+    let mut clipboard = Clipboard::new().map_err(|e| {
+        eprintln!("[clipboard] Clipboard::new failed: {}", e);
+        format!("Clipboard error: {}", e)
+    })?;
+    eprintln!("[clipboard] Clipboard::new ok; writing image");
     clipboard
         .set_image(ImageData {
             width: width as usize,
             height: height as usize,
             bytes: std::borrow::Cow::Borrowed(&rgba),
         })
-        .map_err(|e| format!("Failed to copy image to clipboard: {}", e))
+        .map_err(|e| {
+            eprintln!("[clipboard] set_image failed: {}", e);
+            format!("Failed to copy image to clipboard: {}", e)
+        })?;
+    eprintln!("[clipboard] set_image ok");
+    Ok(())
 }
 
 use std::sync::atomic::{AtomicBool, Ordering};

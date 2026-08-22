@@ -6,6 +6,7 @@ commands.allow = [
   "trigger_screenshot",
   "close_capture_windows",
   "save_and_copy_screenshot",
+  "copy_screenshot_to_clipboard",
   "capture_full_screen",
 
   "capture_work_area",
