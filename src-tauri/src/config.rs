@@ -1,0 +1,108 @@
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppConfig {
+    pub shortcut_screenshot: String,
+    pub shortcut_recording: String,
+    pub save_directory: String,
+    pub remember_save_directory: bool,
+    pub jpg_quality: u8,
+    pub auto_copy_to_clipboard: bool,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String { "dark".to_string() }
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        // Find default pictures folder
+        let default_dir = dirs::picture_dir()
+            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
+            .join("Screenshots");
+
+        Self {
+            shortcut_screenshot: if cfg!(target_os = "macos") {
+                "Command+Shift+A".to_string()
+            } else {
+                "Alt+A".to_string()
+            },
+            shortcut_recording: if cfg!(target_os = "macos") {
+                "Command+Shift+R".to_string()
+            } else {
+                "Alt+R".to_string()
+            },
+            save_directory: default_dir.to_string_lossy().to_string(),
+            remember_save_directory: true,
+            jpg_quality: 90,
+            auto_copy_to_clipboard: true,
+            theme: default_theme(),
+        }
+    }
+}
+
+// Module helper to resolve standard directories
+mod dirs {
+    use std::path::PathBuf;
+    pub fn home_dir() -> Option<PathBuf> {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+    }
+    pub fn picture_dir() -> Option<PathBuf> {
+        home_dir().map(|h| {
+            if cfg!(target_os = "macos") {
+                h.join("Pictures")
+            } else {
+                h.join("Pictures")
+            }
+        })
+    }
+}
+
+fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to get app config dir: {}", e))?;
+
+    // Ensure the folder exists
+    if !app_dir.exists() {
+        fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create config dir: {}", e))?;
+    }
+
+    Ok(app_dir.join("config.json"))
+}
+
+#[tauri::command]
+pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
+    let path = get_config_path(&app)?;
+    if !path.exists() {
+        let default_config = AppConfig::default();
+        let json = serde_json::to_string_pretty(&default_config)
+            .map_err(|e| format!("Serialize error: {}", e))?;
+        fs::write(&path, json).map_err(|e| format!("Write config file error: {}", e))?;
+        return Ok(default_config);
+    }
+
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Read config file error: {}", e))?;
+    let config: AppConfig =
+        serde_json::from_str(&content).map_err(|e| format!("Parse config error: {}", e))?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let json =
+        serde_json::to_string_pretty(&config).map_err(|e| format!("Serialize error: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("Write config file error: {}", e))?;
+    // Rebind native shortcuts in the same save operation. This avoids relying
+    // on a frontend event or a focused WebView to apply the new keys.
+    crate::apply_global_shortcuts(&app, &config)?;
+    Ok(())
+}

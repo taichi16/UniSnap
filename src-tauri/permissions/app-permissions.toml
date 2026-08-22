@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-app-commands"
+description = "Allows all custom commands defined in the application"
+commands.allow = [
+  "capture_screens",
+  "trigger_screenshot",
+  "close_capture_windows",
+  "save_and_copy_screenshot",
+  "capture_full_screen",
+
+  "capture_work_area",
+  "pin_screenshot",
+  "save_config",
+  "load_config",
+  "start_recording",
+  "stop_recording",
+  "trigger_scroll_capture",
+  "auto_scroll_capture_window",
+  "cancel_scroll_capture",
+  "get_pinned_image",
+  "open_image_in_main_editor",
+
+  "unpin_screenshot"
+]
