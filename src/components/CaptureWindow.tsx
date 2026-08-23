@@ -13,6 +13,7 @@ import EditorToolButtons from "./EditorToolButtons";
 import ExpandCanvasDialog from "./ExpandCanvasDialog";
 import OcrResultModal from "./OcrResultModal";
 import RecordingSelectionControls from "./RecordingSelectionControls";
+import ScrollCaptureControls from "./ScrollCaptureControls";
 import StitchingOverlay from "./StitchingOverlay";
 import ToastMessage from "./ToastMessage";
 import ToolOptionsPopover from "./ToolOptionsPopover";
@@ -1311,54 +1312,13 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
         style={isScrollableEditor ? { width: `${isStitchedResult ? (canvasRef.current?.width ?? window.innerWidth) : (editorImageSize?.width ?? window.innerWidth)}px`, height: `${isStitchedResult ? (canvasRef.current?.height ?? window.innerHeight) : (editorImageSize?.height ?? window.innerHeight)}px` } : undefined}
       />
 
-      {/* Long Screenshot Top Guidance Banner */}
-      {mode === "scroll" && !isScrollingMode && !isStitching && (!cropRect || cropRect.w < 80 || cropRect.h < 80) && (
-        <div
-          style={{
-            position: "fixed",
-            top: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(18, 18, 24, 0.94)",
-            border: "1px solid var(--accent-color)",
-            borderRadius: 24,
-            padding: "10px 24px",
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 500,
-            zIndex: 10000,
-            boxShadow: "0 10px 35px rgba(0,0,0,0.6)",
-            pointerEvents: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span>長截圖：先框選單一可捲動內容區域，再開始擷取；不要包含固定側欄、浮動輸入框或捲軸</span>
-          <button
-            onClick={(e) => { e.stopPropagation(); void cancelScrollFlow(); }}
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{ border: "1px solid rgba(255,255,255,.45)", borderRadius: 6, padding: "4px 9px", background: "transparent", color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
-          >
-            取消
-          </button>
-        </div>
-      )}
-
-      {mode === "scroll" && cropRect && !isScrollingMode && !isStitching && (
-        <div
-          style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 10000, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(18,18,24,.96)", border: "1px solid var(--accent-color)", color: "#fff", boxShadow: "0 10px 35px rgba(0,0,0,.55)", pointerEvents: "auto" }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>已選取內容區域；請確認只包含一個捲動區</span>
-          <button className="btn btn-primary" onClick={() => void handleWindowScrollCapture()}>開始長截圖</button>
-          <button className="btn" onClick={() => { setCropRect(null); setIsSelecting(false); }}>重選範圍</button>
-          <button className="btn" onClick={() => void cancelScrollFlow()}>取消</button>
-        </div>
-      )}
+      <ScrollCaptureControls
+        showGuidance={mode === "scroll" && !isScrollingMode && !isStitching && (!cropRect || cropRect.w < 80 || cropRect.h < 80)}
+        hasSelection={mode === "scroll" && Boolean(cropRect) && !isScrollingMode && !isStitching}
+        onStart={() => void handleWindowScrollCapture()}
+        onReset={() => { setCropRect(null); setIsSelecting(false); }}
+        onCancel={() => void cancelScrollFlow()}
+      />
 
 
 
