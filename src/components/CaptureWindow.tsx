@@ -10,6 +10,7 @@ import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
 import { clientToCanvasPoint, getHandleAt, isPointInRect } from "../editor/geometry";
+import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -503,58 +504,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
     if (!imageRef.current) return;
-    
-    // Normalize coordinates to be positive and non-zero
-    const xStart = Math.min(rx, rx + rw);
-    const yStart = Math.min(ry, ry + rh);
-    const width = Math.abs(rw);
-    const height = Math.abs(rh);
-
-    if (width <= 0 || height <= 0 || size <= 0) return;
-    
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = window.innerWidth;
-    tempCanvas.height = window.innerHeight;
-    const tempCtx = tempCanvas.getContext("2d");
-    if (!tempCtx) return;
-    
-    tempCtx.drawImage(imageRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
-    
-    let imgData;
-    try {
-      imgData = tempCtx.getImageData(xStart, yStart, width, height);
-    } catch (e) {
-      console.error("getImageData failed:", e);
-      return;
-    }
-    
-    const data = imgData.data;
-
-    for (let y = 0; y < height; y += size) {
-      for (let x = 0; x < width; x += size) {
-        let r = 0, g = 0, b = 0, count = 0;
-        for (let dy = 0; dy < size && y + dy < height; dy++) {
-          for (let dx = 0; dx < size && x + dx < width; dx++) {
-            const index = ((y + dy) * width + (x + dx)) * 4;
-            if (index + 2 < data.length) {
-              r += data[index];
-              g += data[index + 1];
-              b += data[index + 2];
-              count++;
-            }
-          }
-        }
-        
-        if (count > 0) {
-          const avgR = Math.round(r / count);
-          const avgG = Math.round(g / count);
-          const avgB = Math.round(b / count);
-
-          ctx.fillStyle = `rgb(${avgR},${avgG},${avgB})`;
-          ctx.fillRect(xStart + x, yStart + y, Math.min(size, width - x), Math.min(size, height - y));
-        }
-      }
-    }
+    // Keep the established editor sampling dimensions while moving the pixel
+    // processing implementation out of the window component.
+    drawMosaicPixels(ctx, imageRef.current, rx, ry, rw, rh, size, window.innerWidth, window.innerHeight);
   };
 
   // The editor window may fit a large image inside the available screen. Keep
