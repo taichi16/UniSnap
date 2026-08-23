@@ -32,6 +32,7 @@ import { useColorPicker } from "../hooks/useColorPicker";
 import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
 import { useEditorKeyboardShortcuts } from "../hooks/useEditorKeyboardShortcuts";
 import { usePinnedImage } from "../hooks/usePinnedImage";
+import { useCaptureWindowLifecycle } from "../hooks/useCaptureWindowLifecycle";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -293,20 +294,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     return () => { unlisten?.(); };
   }, [mode]);
 
-  // Auto-focus window on mount so drag selection starts on the very first mouse down
-  useEffect(() => {
-    const win = getCurrentWindow();
-    win.setFocus().catch(() => {});
-    window.focus();
-  }, []);
-
-  // Keep the pre-recording toolbar above the captured desktop, including when
-  // the selection touches the Dock/taskbar edge of a monitor.
-  useEffect(() => {
-    if (!cropRect) return;
-    const win = getCurrentWindow();
-    win.setAlwaysOnTop(true).catch(() => {});
-  }, [cropRect]);
+  useCaptureWindowLifecycle(cropRect);
 
   usePinnedImage(
     label,
