@@ -7,6 +7,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
+import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import {
   Pencil,
   MoveRight,
@@ -27,29 +28,6 @@ import {
   Crop,
   Maximize2
 } from "lucide-react";
-
-interface CaptureWindowProps {
-  label: string;
-  mode?: string;
-}
-
-type Tool = "select" | "pen" | "highlighter" | "line" | "arrow" | "rect" | "circle" | "text" | "mosaic";
-type ArrowStyle = "single" | "double" | "curve" | "elbow" | "chevron" | "block";
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-type Shape =
-  | { type: "pen"; points: Point[]; color: string; width: number }
-  | { type: "highlighter"; points: Point[]; color: string; width: number }
-  | { type: "line"; start: Point; end: Point; color: string; width: number; style?: "solid" | "dashed" }
-  | { type: "arrow"; start: Point; end: Point; color: string; width: number; arrowStyle?: ArrowStyle }
-  | { type: "rect"; x: number; y: number; w: number; h: number; color: string; width: number; fill: boolean; style?: "solid" | "dashed"; opacity?: number }
-  | { type: "circle"; x: number; y: number; w: number; h: number; color: string; width: number; fill: boolean; style?: "solid" | "dashed"; opacity?: number }
-  | { type: "text"; x: number; y: number; text: string; color: string; size: number; fontFamily: string }
-  | { type: "mosaic"; x: number; y: number; w: number; h: number; intensity: number };
 
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
