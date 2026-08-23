@@ -38,6 +38,7 @@ import { useCanvasCoordinates } from "../hooks/useCanvasCoordinates";
 import { useCopyScreenshot } from "../hooks/useCopyScreenshot";
 import { usePinScreenshot } from "../hooks/usePinScreenshot";
 import { useSaveScreenshot } from "../hooks/useSaveScreenshot";
+import { useConfirmScreenshot } from "../hooks/useConfirmScreenshot";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -476,26 +477,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   const handleSave = useSaveScreenshot(canvasRef, cropRect, saveFormat, closeEditor, showToast);
 
-  const handleConfirm = async () => {
-    const base64 = getCroppedCanvasBase64();
-    if (!base64) return;
-
-    try {
-      // Decode default options
-      const savedPath = await invoke<string>("save_and_copy_screenshot", {
-        base64Image: base64,
-        savePath: null,
-        autoCopy: true,
-      });
-      showToast(`已存檔且複製到剪貼簿\n路徑: ${savedPath}`);
-      setTimeout(async () => {
-        await closeEditor();
-      }, 800);
-    } catch (err) {
-      console.error("Confirm error:", err);
-      showToast("存檔失敗");
-    }
-  };
+  const handleConfirm = useConfirmScreenshot(canvasRef, cropRect, closeEditor, showToast);
 
   const handlePin = usePinScreenshot(canvasRef, cropRect, closeEditor, showToast);
 
