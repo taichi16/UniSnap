@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
+import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import {
   Pencil,
   MoveRight,
@@ -1294,34 +1295,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     const sy = bounds && canvas ? bounds.height / Math.max(1, canvas.height) : 1;
     const displayRect = { x: cropRect.x * sx, y: cropRect.y * sy, w: cropRect.w * sx, h: cropRect.h * sy };
 
-    // Check if selection covers most of the screen (fullscreen recording mode)
-    const isNearFullScreen = displayRect.w > viewport.width * 0.9 && displayRect.h > viewport.height * 0.8;
-    if (isNearFullScreen) {
-      // Keep it at the top for near-fullscreen selections. The bottom edge can
-      // be covered by the taskbar/dock or fall outside the capture window.
-      return {
-        position: "fixed",
-        top: 56,
-        left: Math.max(10, Math.min(viewport.width - toolbarWidth - 10, (viewport.width - toolbarWidth) / 2)),
-        transform: "none",
-        zIndex: 100000,
-        pointerEvents: "auto",
-      };
-    }
-
-    // Normal mode: position below or above selection box
-    let top = displayRect.y + displayRect.h + 10;
-    if (top + 50 > viewport.height) {
-      top = displayRect.y - 52;
-    }
-    top = Math.max(10, top);
-
-    // Clamp using the rendered toolbar width, not the old 480/500px estimate.
-    // This keeps the right-side controls inside the capture window near edges.
-    let left = displayRect.x + (displayRect.w - toolbarWidth) / 2;
-    left = Math.max(10, Math.min(viewport.width - toolbarWidth - 10, left));
-
-    return { top, left };
+    return calculateToolbarPlacement(displayRect, toolbarWidth, viewport);
   };
 
   return (
