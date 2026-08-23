@@ -11,7 +11,7 @@ import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
-import { getSelectionBounds, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
+import { expandSelectedCanvas, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { getCaptureMonitorIndex } from "../editor/windowIdentity";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
@@ -545,44 +545,19 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     // created a selection yet, fall back to the whole image for compatibility
     // with opening an image directly in the editor.
     const selection = cropRect ?? { x: 0, y: 0, w: source.width, h: source.height };
-    const { x: selectionX, y: selectionY, width: selectionWidth, height: selectionHeight } = getSelectionBounds(selection, source);
-    if (selectionWidth <= 0 || selectionHeight <= 0) {
+    const expanded = expandSelectedCanvas(source, selection, { top, right, bottom, left });
+    if (!expanded) {
       showToast("目前選取區域無法擴增");
       return;
     }
 
-    const selected = document.createElement("canvas");
-    selected.width = selectionWidth;
-    selected.height = selectionHeight;
-    const selectedCtx = selected.getContext("2d");
-    if (!selectedCtx) return;
-    selectedCtx.drawImage(
-      source,
-      selectionX,
-      selectionY,
-      selectionWidth,
-      selectionHeight,
-      0,
-      0,
-      selectionWidth,
-      selectionHeight,
-    );
-
-    const expanded = document.createElement("canvas");
-    expanded.width = selectionWidth + left + right;
-    expanded.height = selectionHeight + top + bottom;
-    const ctx = expanded.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, expanded.width, expanded.height);
-    ctx.drawImage(selected, left, top);
-    const data = expanded.toDataURL("image/png");
+    const data = expanded.dataUrl;
     const img = new Image();
     img.onload = () => {
       imageRef.current = img;
       setScreenshotData(data);
       setImageLoaded(true);
-      setShapes((items) => translateShapes(items, selectionX, selectionY, left, top));
+      setShapes((items) => translateShapes(items, expanded.selectionX, expanded.selectionY, left, top));
       if (canvasRef.current) {
         canvasRef.current.width = expanded.width;
         canvasRef.current.height = expanded.height;
