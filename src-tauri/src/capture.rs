@@ -6,16 +6,7 @@ use image::RgbaImage;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
-
-#[derive(serde::Serialize, Clone, Debug)]
-pub struct MonitorBasicInfo {
-    pub name: String,
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub scale_factor: f32,
-}
+use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -46,17 +37,6 @@ pub fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorBasicInfo>, Str
         })
         .collect();
     Ok(infos)
-}
-
-#[derive(serde::Serialize, Clone, Debug)]
-pub struct MonitorScreenshot {
-    pub name: String,
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub scale_factor: f32,
-    pub base64_image: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

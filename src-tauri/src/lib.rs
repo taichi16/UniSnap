@@ -1,4 +1,5 @@
 mod capture;
+mod capture_types;
 mod config;
 mod record;
 
