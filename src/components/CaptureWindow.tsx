@@ -14,6 +14,7 @@ import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool } from "../editor/shapeFactory";
 import { rgbToHex } from "../editor/color";
+import { parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -703,10 +704,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   const applyExpandCanvas = () => {
     if (!canvasRef.current || !imageRef.current) return;
-    const top = Math.max(0, Math.round(Number(expandValues.top) || 0));
-    const right = Math.max(0, Math.round(Number(expandValues.right) || 0));
-    const bottom = Math.max(0, Math.round(Number(expandValues.bottom) || 0));
-    const left = Math.max(0, Math.round(Number(expandValues.left) || 0));
+    const { top, right, bottom, left } = parseExpansionValues(expandValues);
     if (top + right + bottom + left === 0) {
       setShowExpandDialog(false);
       showToast("未輸入擴增像素");
@@ -758,12 +756,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       imageRef.current = img;
       setScreenshotData(data);
       setImageLoaded(true);
-      setShapes((items) => items.map((shape) => {
-        if ("x" in shape && "y" in shape) return { ...shape, x: shape.x - selectionX + left, y: shape.y - selectionY + top } as Shape;
-        if ("start" in shape && "end" in shape) return { ...shape, start: { x: shape.start.x - selectionX + left, y: shape.start.y - selectionY + top }, end: { x: shape.end.x - selectionX + left, y: shape.end.y - selectionY + top } } as Shape;
-        if ("points" in shape) return { ...shape, points: shape.points.map((p) => ({ x: p.x - selectionX + left, y: p.y - selectionY + top })) } as Shape;
-        return shape;
-      }));
+      setShapes((items) => translateShapes(items, selectionX, selectionY, left, top));
       if (canvasRef.current) {
         canvasRef.current.width = expanded.width;
         canvasRef.current.height = expanded.height;
