@@ -1,11 +1,9 @@
 import React, { useState, useRef } from "react";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { getCanvasOverlayPosition, getEditorCanvasSize } from "../editor/geometry";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
-import { createShapeForTool } from "../editor/shapeFactory";
-import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
@@ -38,6 +36,7 @@ import { useMosaicRenderer } from "../hooks/useMosaicRenderer";
 import { useCanvasExpansion } from "../hooks/useCanvasExpansion";
 import { useScrollCapture } from "../hooks/useScrollCapture";
 import { useAnnotationActions } from "../hooks/useAnnotationActions";
+import { useEditorPointerHandlers } from "../hooks/useEditorPointerHandlers";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -198,135 +197,14 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // Keep pointer coordinates in the image's native pixel space after visual scaling.
   const toCanvasPoint = useCanvasCoordinates(canvasRef);
 
-  // Mouse Handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const clientPos = toCanvasPoint(e.clientX, e.clientY);
-
-    if (!cropRect) {
-      // First crop selection
-      setIsSelecting(true);
-      setSelectStart(clientPos);
-      setCropRect({ x: clientPos.x, y: clientPos.y, w: 0, h: 0 });
-      return;
-    }
-
-
-    // Text annotations remain movable until the image is saved. Handle this
-    // before the active-tool branch so the user can drag a label immediately
-    // after typing, without having to reselect the pointer tool first.
-    const textIndex = findTextShapeIndex(shapes, clientPos);
-    if (textIndex !== undefined) {
-      const shape = shapes[textIndex];
-      if (shape.type === "text") {
-        setDraggingTextIndex(textIndex);
-        setTextDragOffset({ x: clientPos.x - shape.x, y: clientPos.y - shape.y });
-        return;
-      }
-    }
-
-    if (activeTool === "select") {
-
-      // Check handles first
-      const handle = getHandleAt(clientPos, cropRect);
-      if (handle) {
-        setResizeHandle(handle);
-        return;
-      }
-
-      // Check if dragging inside crop box
-      if (isPointInRect(clientPos, cropRect)) {
-        setIsDraggingCrop(true);
-        setDragOffset({ x: clientPos.x - cropRect.x, y: clientPos.y - cropRect.y });
-        return;
-      }
-
-      // If clicked outside selection, start a new crop box
-      setIsSelecting(true);
-      setSelectStart(clientPos);
-      setCropRect({ x: clientPos.x, y: clientPos.y, w: 0, h: 0 });
-    } else {
-      // Draw annotations inside crop selection
-      if (!isPointInRect(clientPos, cropRect)) return;
-
-      const shape = createShapeForTool(activeTool, clientPos, {
-        color: strokeColor,
-        width: strokeWidth,
-        fill: fillShape,
-        opacity: fillOpacity,
-        mosaicIntensity,
-        lineStyle,
-        arrowStyle,
-      });
-      if (shape) {
-        setCurrentShape(shape);
-      } else if (activeTool === "text") {
-        setTextInput({ x: clientPos.x, y: clientPos.y, text: "" });
-        setTimeout(() => textInputRef.current?.focus(), 50);
-      }
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const clientPos = toCanvasPoint(e.clientX, e.clientY);
-    setMousePos({ x: e.clientX, y: e.clientY });
-
-    if (isSelecting && cropRect) {
-      // Selection dragging
-      setCropRect(createSelectionRect(selectStart, clientPos));
-      return;
-    }
-
-    if (draggingTextIndex !== null) {
-      const shape = shapes[draggingTextIndex];
-      if (shape?.type === "text") {
-        const canvasSize = getCanvasPixelSize(canvasRef.current, { width: window.innerWidth, height: window.innerHeight });
-        const nextX = Math.max(0, Math.min(canvasSize.width - 1, clientPos.x - textDragOffset.x));
-        const nextY = Math.max(shape.size, Math.min(canvasSize.height - 1, clientPos.y - textDragOffset.y));
-        setShapes((current) => current.map((item, index) => index === draggingTextIndex && item.type === "text"
-          ? { ...item, x: nextX, y: nextY }
-          : item));
-      }
-      return;
-    }
-
-    if (resizeHandle && cropRect) {
-      // Adjusting borders
-      setCropRect(resizeEditorRect(cropRect, resizeHandle, clientPos));
-      return;
-    }
-
-    if (isDraggingCrop && cropRect) {
-      // Moving entire crop box
-      setCropRect(moveEditorRect(cropRect, clientPos, dragOffset, getCanvasPixelSize(canvasRef.current, { width: window.innerWidth, height: window.innerHeight })));
-      return;
-    }
-
-    // Annotation drawing
-    if (currentShape && cropRect) {
-      // Lock coordinates inside cropRect
-      const lockedPos = clampPointToRect(clientPos, cropRect);
-
-      setCurrentShape(updateShapeEndpoint(currentShape, lockedPos));
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    // Persist the exact last pointer position on selection completion.
-    if ((isRecordMode || mode === "scroll") && isSelecting) {
-      const point = toCanvasPoint(e.clientX, e.clientY);
-      setCropRect(createSelectionRect(selectStart, point));
-    }
-    setIsSelecting(false);
-    setResizeHandle(null);
-    setIsDraggingCrop(false);
-    setDraggingTextIndex(null);
-
-    if (currentShape) {
-      // Save shape
-      setShapes([...shapes, currentShape]);
-      setCurrentShape(null);
-    }
-  };
+  const { handleMouseDown, handleMouseMove, handleMouseUp } = useEditorPointerHandlers({
+    toCanvasPoint, canvasRef, cropRect, setCropRect, isSelecting, setIsSelecting,
+    selectStart, setSelectStart, shapes, setShapes, activeTool, strokeColor, strokeWidth,
+    fillShape, fillOpacity, mosaicIntensity, lineStyle, arrowStyle, setCurrentShape, currentShape,
+    setTextInput, textInputRef, draggingTextIndex, setDraggingTextIndex, textDragOffset,
+    setTextDragOffset, resizeHandle, setResizeHandle, isDraggingCrop, setIsDraggingCrop,
+    dragOffset, setDragOffset, setMousePos, isRecordMode, mode,
+  });
 
 
   const { handleTextInputBlur, handleUndo } = useAnnotationActions(
