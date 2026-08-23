@@ -13,6 +13,8 @@ import EditorToolButtons from "./EditorToolButtons";
 import ExpandCanvasDialog from "./ExpandCanvasDialog";
 import OcrResultModal from "./OcrResultModal";
 import RecordingSelectionControls from "./RecordingSelectionControls";
+import StitchingOverlay from "./StitchingOverlay";
+import ToastMessage from "./ToastMessage";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import {
 } from "lucide-react";
@@ -1531,17 +1533,14 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* Stitching Loading Overlay */}
       {isStitching && (
-        <div className="ocr-result-modal" style={{ textAlign: "center" }} onMouseDown={(e) => e.stopPropagation()}>
-          <h3 style={{ marginBottom: 10 }}>正在拼接長截圖...</h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: 13 }}>請稍候，正在比對重疊像素進行垂直拼接</p>
-        </div>
+        <StitchingOverlay />
       )}
 
 
 
 
 
-      {toastMsg && <div className="toast">{toastMsg}</div>}
+      {toastMsg && <ToastMessage message={toastMsg} />}
     </div>
   );
 }
