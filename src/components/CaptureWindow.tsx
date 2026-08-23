@@ -9,7 +9,7 @@ import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { getHandleAt, isPointInRect } from "../editor/geometry";
+import { clientToCanvasPoint, getHandleAt, isPointInRect } from "../editor/geometry";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -564,10 +564,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     const canvas = canvasRef.current;
     if (!canvas) return { x: clientX, y: clientY };
     const rect = canvas.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * canvas.width / Math.max(1, rect.width))),
-      y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * canvas.height / Math.max(1, rect.height))),
-    };
+    return clientToCanvasPoint(clientX, clientY, rect, canvas.width, canvas.height);
   };
 
   // Mouse Handlers

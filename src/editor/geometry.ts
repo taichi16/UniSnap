@@ -35,3 +35,17 @@ export function isPointInRect(point: Point, rect: EditorRect): boolean {
     && point.y >= rect.y
     && point.y <= rect.y + rect.h;
 }
+
+/** Converts a browser pointer position into the canvas' native pixel space. */
+export function clientToCanvasPoint(
+  clientX: number,
+  clientY: number,
+  bounds: { left: number; top: number; width: number; height: number },
+  canvasWidth: number,
+  canvasHeight: number,
+): Point {
+  return {
+    x: Math.max(0, Math.min(canvasWidth, (clientX - bounds.left) * canvasWidth / Math.max(1, bounds.width))),
+    y: Math.max(0, Math.min(canvasHeight, (clientY - bounds.top) * canvasHeight / Math.max(1, bounds.height))),
+  };
+}
