@@ -9,6 +9,7 @@ use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
 use crate::editor_image::load_editor_image;
 use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
+use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -832,33 +833,6 @@ fn fixed_column_mask(before: &RgbaImage, after: &RgbaImage) -> Vec<bool> {
         start = end;
     }
     mask
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ScrollCaptureStrategy {
-    BrowserPage,
-    DocumentApp,
-    DesktopStitch,
-}
-
-fn classify_scroll_target(app_name: &str, title: &str) -> ScrollCaptureStrategy {
-    let app = app_name.to_ascii_lowercase();
-    let title = title.to_ascii_lowercase();
-    if ["google chrome", "chrome", "brave browser", "microsoft edge", "safari", "firefox"]
-        .iter()
-        .any(|name| app.contains(name))
-        || title.contains("google chrome")
-        || title.contains("microsoft edge")
-    {
-        ScrollCaptureStrategy::BrowserPage
-    } else if ["microsoft word", "pages", "libreoffice", "preview", "acrobat"]
-        .iter()
-        .any(|name| app.contains(name) || title.contains(name))
-    {
-        ScrollCaptureStrategy::DocumentApp
-    } else {
-        ScrollCaptureStrategy::DesktopStitch
-    }
 }
 
 #[tauri::command]
