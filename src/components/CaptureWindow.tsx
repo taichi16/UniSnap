@@ -31,6 +31,7 @@ import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionIni
 import { useColorPicker } from "../hooks/useColorPicker";
 import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
 import { useEditorKeyboardShortcuts } from "../hooks/useEditorKeyboardShortcuts";
+import { usePinnedImage } from "../hooks/usePinnedImage";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -307,40 +308,16 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     win.setAlwaysOnTop(true).catch(() => {});
   }, [cropRect]);
 
-  // Fetch base64 image on mount
-  useEffect(() => {
-    async function fetchScreenshot() {
-      try {
-        const data = await invoke<string>("get_pinned_image", { label });
-        setScreenshotData(data);
-        const img = new Image();
-        img.onload = () => {
-          imageRef.current = img;
-          if (isMainEditor) {
-            setEditorImageSize({ width: img.width, height: img.height });
-          }
-          setImageLoaded(true);
-          if (mode === "edit" || mode === "edit-main") {
-            setCropRect({
-              x: 0,
-              y: 0,
-              w: img.width,
-              h: img.height,
-            });
-          }
-        };
-        // Register before assigning src.  Small local images may complete
-        // immediately from cache; registering afterwards leaves the editor
-        // with an image but without its editable crop and toolbar state.
-        img.src = data;
-      } catch (err) {
-        console.error("Failed to load screenshot:", err);
-      }
-    }
-    if (label) {
-      fetchScreenshot();
-    }
-  }, [label]);
+  usePinnedImage(
+    label,
+    mode,
+    isMainEditor,
+    imageRef,
+    setScreenshotData,
+    setImageLoaded,
+    setEditorImageSize,
+    setCropRect,
+  );
 
   // Keep the editing surface initialisation separate from image decoding.
   // This guarantees that an old file opened from the native file picker has
