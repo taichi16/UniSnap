@@ -7,6 +7,27 @@ export interface ExpansionValues {
   left: number;
 }
 
+export interface SelectionBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function getSelectionBounds(
+  selection: { x: number; y: number; w: number; h: number },
+  source: { width: number; height: number },
+): SelectionBounds {
+  const x = Math.max(0, Math.round(selection.x));
+  const y = Math.max(0, Math.round(selection.y));
+  return {
+    x,
+    y,
+    width: Math.min(source.width - x, Math.max(1, Math.round(selection.w))),
+    height: Math.min(source.height - y, Math.max(1, Math.round(selection.h))),
+  };
+}
+
 export function parseExpansionValues(values: Record<keyof ExpansionValues, string>): ExpansionValues {
   const parse = (value: string) => Math.max(0, Math.round(Number(value) || 0));
   return { top: parse(values.top), right: parse(values.right), bottom: parse(values.bottom), left: parse(values.left) };

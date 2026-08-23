@@ -14,7 +14,7 @@ import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
 import { rgbToHex } from "../editor/color";
-import { parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
+import { getSelectionBounds, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
@@ -686,10 +686,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     // created a selection yet, fall back to the whole image for compatibility
     // with opening an image directly in the editor.
     const selection = cropRect ?? { x: 0, y: 0, w: source.width, h: source.height };
-    const selectionX = Math.max(0, Math.round(selection.x));
-    const selectionY = Math.max(0, Math.round(selection.y));
-    const selectionWidth = Math.min(source.width - selectionX, Math.max(1, Math.round(selection.w)));
-    const selectionHeight = Math.min(source.height - selectionY, Math.max(1, Math.round(selection.h)));
+    const { x: selectionX, y: selectionY, width: selectionWidth, height: selectionHeight } = getSelectionBounds(selection, source);
     if (selectionWidth <= 0 || selectionHeight <= 0) {
       showToast("目前選取區域無法擴增");
       return;
