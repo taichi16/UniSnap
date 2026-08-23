@@ -13,7 +13,6 @@ import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
-import { rgbToHex } from "../editor/color";
 import { getSelectionBounds, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { getCaptureMonitorIndex } from "../editor/windowIdentity";
@@ -30,6 +29,7 @@ import ToolOptionsPopover from "./ToolOptionsPopover";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useToastMessage } from "../hooks/useToastMessage";
 import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionInitialization";
+import { useColorPicker } from "../hooks/useColorPicker";
 import {
 } from "lucide-react";
 
@@ -446,24 +446,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   }, [imageLoaded, cropRect, shapes, currentShape]);
 
-  // Color picker pixel reading
-  useEffect(() => {
-    if (!imageLoaded || !imageRef.current || cropRect) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-
-    try {
-      const pixel = ctx.getImageData(mousePos.x, mousePos.y, 1, 1).data;
-      const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
-      setHoverColor(hex);
-    } catch (e) {
-      // Ignore boundary errors
-    }
-  }, [mousePos, imageLoaded, cropRect]);
+  useColorPicker(imageRef, imageLoaded, cropRect, mousePos, setHoverColor);
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
     if (!imageRef.current) return;
