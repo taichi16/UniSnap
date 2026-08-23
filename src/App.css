@@ -366,9 +366,9 @@ input:checked + .slider:before {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 6px;
-  max-width: calc(100vw - 20px);
-  overflow-x: auto;
-  overflow-y: visible;
+  /* Keep nested color/tool option panels visible. Edge placement is handled
+     by toolbarLayout.ts using the measured natural width. */
+  overflow: visible;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   z-index: 9999;
 }
