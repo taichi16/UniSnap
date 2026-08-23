@@ -2,6 +2,7 @@ mod capture;
 mod capture_types;
 mod config;
 mod record;
+mod record_types;
 
 use std::collections::HashMap;
 use std::sync::Mutex;

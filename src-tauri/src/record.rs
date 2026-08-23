@@ -18,6 +18,7 @@ use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
 };
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
+use crate::record_types::{RecordingResult, ScrollConfig};
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -309,15 +310,6 @@ impl Drop for FrameSource {
             let _ = recorder.stop();
         }
     }
-}
-
-#[derive(Clone, Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordingResult {
-    pub path: String,
-    pub frame_count: u64,
-    pub width: u32,
-    pub height: u32,
 }
 
 #[cfg(target_os = "macos")]
@@ -890,18 +882,6 @@ fn encode_recording(
         width: crop.width,
         height: crop.height,
     })
-}
-
-#[derive(serde::Deserialize)]
-pub struct ScrollConfig {
-    pub mode: String, // "auto" or "manual"
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub scroll_amount: Option<i32>,
-    pub monitor_offset_x: Option<i32>,
-    pub monitor_offset_y: Option<i32>,
 }
 
 #[tauri::command]
