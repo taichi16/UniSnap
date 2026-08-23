@@ -18,10 +18,11 @@ use openh264::encoder::{
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use crate::record_types::{RecordingResult, ScrollConfig};
 use crate::audio_capture::{start_audio_capture, AudioCapture};
+use crate::frame_source::{CaptureRegion, FrameSource};
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
-use xcap::{Frame, Monitor, VideoRecorder};
+use xcap::{Frame, Monitor};
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -151,74 +152,6 @@ fn start_system_recording(
         width,
         height,
     })
-}
-
-enum FrameSource {
-    Receiver(mpsc::Receiver<Frame>),
-    Monitor(Monitor),
-    Native {
-        recorder: VideoRecorder,
-        receiver: mpsc::Receiver<Frame>,
-    },
-    MonitorRegion {
-        monitor: Monitor,
-        region: CaptureRegion,
-    },
-}
-
-#[derive(Clone, Copy)]
-struct CaptureRegion {
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    canvas_width: u32,
-    canvas_height: u32,
-}
-
-impl FrameSource {
-    fn next_frame(&self, timeout: Duration) -> Result<Option<Frame>, String> {
-        match self {
-            Self::Receiver(receiver) => match receiver.recv_timeout(timeout) {
-                Ok(frame) => Ok(Some(frame)),
-                Err(mpsc::RecvTimeoutError::Timeout) => Ok(None),
-                Err(mpsc::RecvTimeoutError::Disconnected) => Ok(None),
-            },
-            Self::Native { receiver, .. } => match receiver.recv_timeout(timeout) {
-                Ok(frame) => Ok(Some(frame)),
-                Err(mpsc::RecvTimeoutError::Timeout) => Ok(None),
-                Err(mpsc::RecvTimeoutError::Disconnected) => Ok(None),
-            },
-            Self::Monitor(monitor) => {
-                let image = monitor
-                    .capture_image()
-                    .map_err(|e| format!("擷取錄影影格失敗：{e}"))?;
-                Ok(Some(Frame::new(
-                    image.width(),
-                    image.height(),
-                    image.into_raw(),
-                )))
-            }
-            Self::MonitorRegion { monitor, region } => {
-                let image = monitor
-                    .capture_region(region.x, region.y, region.width, region.height)
-                    .map_err(|e| format!("擷取錄影區域影格失敗：{e}"))?;
-                Ok(Some(Frame::new(
-                    image.width(),
-                    image.height(),
-                    image.into_raw(),
-                )))
-            }
-        }
-    }
-}
-
-impl Drop for FrameSource {
-    fn drop(&mut self) {
-        if let Self::Native { recorder, .. } = self {
-            let _ = recorder.stop();
-        }
-    }
 }
 
 #[cfg(target_os = "macos")]

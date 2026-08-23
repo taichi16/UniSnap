@@ -3,6 +3,7 @@ mod capture_types;
 mod audio_capture;
 mod config;
 mod editor_image;
+mod frame_source;
 mod image_data;
 mod record;
 mod record_types;
