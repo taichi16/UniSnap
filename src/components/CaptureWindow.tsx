@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, getAllWindows, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -34,6 +34,7 @@ import { usePinnedImage } from "../hooks/usePinnedImage";
 import { useCaptureWindowLifecycle } from "../hooks/useCaptureWindowLifecycle";
 import { useScrollCaptureEvents } from "../hooks/useScrollCaptureEvents";
 import { useRecordingStart } from "../hooks/useRecordingStart";
+import { useEditorWindowActions } from "../hooks/useEditorWindowActions";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -210,25 +211,11 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const isScrollableEditor = isMainEditor || isStitchedResult;
   const { toolbarWidth, viewport } = useResponsiveLayout(toolbarRef, [isScrollableEditor, Boolean(cropRect), activeTool, showColorPalette]);
 
-  const closeEditor = async () => {
-    if (isMainEditor) {
-      const current = getCurrentWindow();
-      window.location.hash = "#/";
-      await current.setSize(new LogicalSize(760, 112));
-      return;
-    }
-    await invoke("close_capture_windows");
-  };
-
-  const cancelScrollFlow = async () => {
-    if (isScrollingModeRef.current) {
-      scrollCancelRequestedRef.current = true;
-      await invoke("cancel_scroll_capture");
-      return;
-    }
-    await invoke("cancel_scroll_capture");
-    await closeEditor();
-  };
+  const { closeEditor, cancelScrollFlow } = useEditorWindowActions(
+    isMainEditor,
+    isScrollingModeRef,
+    scrollCancelRequestedRef,
+  );
 
   const startRecordingControl = useRecordingStart({
     label,
