@@ -29,9 +29,6 @@ import { useToastMessage } from "../hooks/useToastMessage";
 import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionInitialization";
 import { useColorPicker } from "../hooks/useColorPicker";
 import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
-import {
-} from "lucide-react";
-
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
