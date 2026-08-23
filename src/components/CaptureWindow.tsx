@@ -8,6 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
+import EditorActions from "./EditorActions";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import {
   Pencil,
@@ -18,13 +19,7 @@ import {
   Type,
   Grid,
   Highlighter,
-  RotateCcw,
-  Pin,
-  Languages,
-  Download,
-  Copy,
   X,
-  Check,
   Crop,
   Maximize2
 } from "lucide-react";
@@ -1595,47 +1590,19 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
                 onMosaicIntensityChange={setMosaicIntensity}
               />
 
-              <button className="toolbar-btn" onClick={handleUndo} disabled={shapes.length === 0} data-tooltip="復原">
-                <RotateCcw size={16} />
-              </button>
-
-              <div className="toolbar-divider"></div>
-
-              {/* Action Buttons */}
-              <button className="toolbar-btn" onClick={handlePin} data-tooltip="置頂貼圖">
-                <Pin size={16} color="#3b82f6" />
-              </button>
-              
-              <button className="toolbar-btn" onClick={handleOCR} disabled={ocrLoading} data-tooltip="文字辨識 (OCR)">
-                <Languages size={16} color="#10b981" />
-              </button>
-
-              <button className="toolbar-btn" onClick={handleCopyOnly} data-tooltip="複製到剪貼簿 (Cmd+C)">
-                <Copy size={16} color="#38bdf8" />
-              </button>
-
-              <select
-                value={saveFormat}
-                onChange={(e) => setSaveFormat(e.target.value as "png" | "jpg")}
-                title="選擇圖片格式"
-                aria-label="選擇圖片格式"
-                style={{ height: 28, fontSize: 11, borderRadius: 5, padding: "0 4px", background: "var(--panel-bg)", color: "var(--text-primary)", border: "1px solid var(--panel-border)" }}
-              >
-                <option value="png">PNG</option>
-                <option value="jpg">JPG</option>
-              </select>
-
-              <button className="toolbar-btn" onClick={handleSave} data-tooltip="另存新檔...">
-                <Download size={16} />
-              </button>
-
-              <button className="toolbar-btn" onClick={() => void closeEditor()} data-tooltip="取消 (Esc)">
-                <X size={16} color="#ef4444" />
-              </button>
-
-              <button className="toolbar-btn" onClick={handleConfirm} data-tooltip="完成存檔並關閉">
-                <Check size={16} color="#10b981" />
-              </button>
+              <EditorActions
+                canUndo={shapes.length > 0}
+                onUndo={handleUndo}
+                onPin={handlePin}
+                onOCR={handleOCR}
+                ocrLoading={ocrLoading}
+                onCopy={handleCopyOnly}
+                saveFormat={saveFormat}
+                onSaveFormatChange={setSaveFormat}
+                onSave={handleSave}
+                onCancel={() => void closeEditor()}
+                onConfirm={handleConfirm}
+              />
           </>
         </div>
       )}
