@@ -9,6 +9,7 @@ import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
+import { getHandleAt, isPointInRect } from "../editor/geometry";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -554,32 +555,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
         }
       }
     }
-  };
-
-  // Resize logic helpers
-  const getHandleAt = (p: Point, rect: { x: number; y: number; w: number; h: number }) => {
-    const size = 12; // Click target margin
-    const handles: Record<string, Point> = {
-      TL: { x: rect.x, y: rect.y },
-      TM: { x: rect.x + rect.w / 2, y: rect.y },
-      TR: { x: rect.x + rect.w, y: rect.y },
-      MR: { x: rect.x + rect.w, y: rect.y + rect.h / 2 },
-      BR: { x: rect.x + rect.w, y: rect.y + rect.h },
-      BM: { x: rect.x + rect.w / 2, y: rect.y + rect.h },
-      BL: { x: rect.x, y: rect.y + rect.h },
-      ML: { x: rect.x, y: rect.y + rect.h / 2 },
-    };
-
-    for (const [name, pos] of Object.entries(handles)) {
-      if (Math.abs(p.x - pos.x) < size && Math.abs(p.y - pos.y) < size) {
-        return name;
-      }
-    }
-    return null;
-  };
-
-  const isPointInRect = (p: Point, rect: { x: number; y: number; w: number; h: number }) => {
-    return p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h;
   };
 
   // The editor window may fit a large image inside the available screen. Keep
