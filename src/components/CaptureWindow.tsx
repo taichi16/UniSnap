@@ -6,12 +6,12 @@ import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
-import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
 import { clientToCanvasPoint, getHandleAt, isPointInRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
+import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -957,26 +957,18 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   // Fix 4: Positioning floating toolbar - stays fixed at bottom when fullscreen selected
   const getToolbarStyle = (): React.CSSProperties => {
-    if (isScrollableEditor) {
-      return {
-        position: "sticky",
-        top: 10,
-        margin: "10px auto",
-        transform: "none",
-        zIndex: 100000,
-        pointerEvents: "auto",
-      };
-    }
-
-    if (!cropRect) return { display: "none" };
-
     const canvas = canvasRef.current;
     const bounds = canvas?.getBoundingClientRect();
-    const sx = bounds && canvas ? bounds.width / Math.max(1, canvas.width) : 1;
-    const sy = bounds && canvas ? bounds.height / Math.max(1, canvas.height) : 1;
-    const displayRect = { x: cropRect.x * sx, y: cropRect.y * sy, w: cropRect.w * sx, h: cropRect.h * sy };
-
-    return calculateToolbarPlacement(displayRect, toolbarWidth, viewport);
+    return calculateToolbarStyle({
+      isScrollableEditor,
+      cropRect,
+      canvasWidth: canvas?.width ?? window.innerWidth,
+      canvasHeight: canvas?.height ?? window.innerHeight,
+      displayWidth: bounds?.width ?? window.innerWidth,
+      displayHeight: bounds?.height ?? window.innerHeight,
+      toolbarWidth,
+      viewport,
+    });
   };
 
   return (
