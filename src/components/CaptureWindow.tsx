@@ -37,6 +37,7 @@ import { useEditorWindowActions } from "../hooks/useEditorWindowActions";
 import { useOcr } from "../hooks/useOcr";
 import { useCanvasCoordinates } from "../hooks/useCanvasCoordinates";
 import { useCopyScreenshot } from "../hooks/useCopyScreenshot";
+import { usePinScreenshot } from "../hooks/usePinScreenshot";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -524,27 +525,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     }
   };
 
-  const handlePin = async () => {
-    const base64 = getCroppedCanvasBase64();
-    if (!base64 || !cropRect) return;
-
-    try {
-      // Calculate coordinates relative to screen
-      await invoke("pin_screenshot", {
-        imageBase64: base64,
-        x: cropRect.x,
-        y: cropRect.y,
-        width: cropRect.w,
-        height: cropRect.h,
-      });
-      
-      // Close capture windows
-      await closeEditor();
-    } catch (err) {
-      console.error("Pin error:", err);
-      showToast("貼圖失敗");
-    }
-  };
+  const handlePin = usePinScreenshot(canvasRef, cropRect, closeEditor, showToast);
 
   const { ocrText, setOcrText, ocrLoading, handleOCR } = useOcr(
     getCroppedCanvasBase64,
