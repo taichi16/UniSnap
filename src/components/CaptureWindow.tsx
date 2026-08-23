@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, getAllWindows, LogicalSize } from "@tauri-apps/api/window";
 
@@ -33,6 +33,7 @@ import { useEditorKeyboardShortcuts } from "../hooks/useEditorKeyboardShortcuts"
 import { usePinnedImage } from "../hooks/usePinnedImage";
 import { useCaptureWindowLifecycle } from "../hooks/useCaptureWindowLifecycle";
 import { useScrollCaptureEvents } from "../hooks/useScrollCaptureEvents";
+import { useRecordingStart } from "../hooks/useRecordingStart";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -229,45 +230,17 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     await closeEditor();
   };
 
-  const startRecordingControl = async () => {
-    if (!cropRect || isStartingRecording) return;
-    const monitorIndex = getCaptureMonitorIndex(label);
-    const captureWindow = getCurrentWindow();
-    try {
-      setIsStartingRecording(true);
-      // The start panel belongs to this capture window. Hide it before the
-      // operating system starts collecting frames, so it is never recorded.
-      await captureWindow.hide();
-      await new Promise((resolve) => window.setTimeout(resolve, 120));
-      await invoke("start_recording", {
-        monitorIndex,
-        x: Math.round(cropRect.x),
-        y: Math.round(cropRect.y),
-        width: Math.round(cropRect.w),
-        height: Math.round(cropRect.h),
-        canvasWidth: canvasRef.current?.width ?? window.innerWidth,
-        canvasHeight: canvasRef.current?.height ?? window.innerHeight,
-        recordAudio,
-        recordSystemAudio,
-        fps: recordingFps,
-      });
-      window.location.hash = "#/recording-control";
-    } catch (error) {
-      setIsStartingRecording(false);
-      await captureWindow.show().catch(() => {});
-      await captureWindow.setFocus().catch(() => {});
-      showToast(`啟動錄影失敗：${String(error)}`);
-    }
-  };
-
-  useEffect(() => {
-    if (!isStartingRecording) return;
-    const timeout = window.setTimeout(() => {
-      setIsStartingRecording(false);
-      showToast("錄影啟動逾時");
-    }, 8000);
-    return () => window.clearTimeout(timeout);
-  }, [isStartingRecording]);
+  const startRecordingControl = useRecordingStart({
+    label,
+    cropRect,
+    isStartingRecording,
+    setIsStartingRecording,
+    canvasRef,
+    recordAudio,
+    recordSystemAudio,
+    recordingFps,
+    showToast,
+  });
 
   // The capture window is hidden during scrolling, so Escape is routed
   // through the main window's global shortcut handler.
