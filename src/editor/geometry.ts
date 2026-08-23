@@ -7,6 +7,13 @@ export interface EditorRect {
   h: number;
 }
 
+export function getCanvasPixelSize(canvas: HTMLCanvasElement | null, fallback: { width: number; height: number }): { width: number; height: number } {
+  return {
+    width: canvas?.width ?? fallback.width,
+    height: canvas?.height ?? fallback.height,
+  };
+}
+
 export function createSelectionRect(start: Point, current: Point): EditorRect {
   return {
     x: Math.min(current.x, start.x),

@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -597,8 +597,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     if (draggingTextIndex !== null) {
       const shape = shapes[draggingTextIndex];
       if (shape?.type === "text") {
-        const nextX = Math.max(0, Math.min((canvasRef.current?.width ?? window.innerWidth) - 1, clientPos.x - textDragOffset.x));
-        const nextY = Math.max(shape.size, Math.min((canvasRef.current?.height ?? window.innerHeight) - 1, clientPos.y - textDragOffset.y));
+        const canvasSize = getCanvasPixelSize(canvasRef.current, { width: window.innerWidth, height: window.innerHeight });
+        const nextX = Math.max(0, Math.min(canvasSize.width - 1, clientPos.x - textDragOffset.x));
+        const nextY = Math.max(shape.size, Math.min(canvasSize.height - 1, clientPos.y - textDragOffset.y));
         setShapes((current) => current.map((item, index) => index === draggingTextIndex && item.type === "text"
           ? { ...item, x: nextX, y: nextY }
           : item));
@@ -614,10 +615,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
     if (isDraggingCrop && cropRect) {
       // Moving entire crop box
-      setCropRect(moveEditorRect(cropRect, clientPos, dragOffset, {
-        width: canvasRef.current?.width ?? window.innerWidth,
-        height: canvasRef.current?.height ?? window.innerHeight,
-      }));
+      setCropRect(moveEditorRect(cropRect, clientPos, dragOffset, getCanvasPixelSize(canvasRef.current, { width: window.innerWidth, height: window.innerHeight })));
       return;
     }
 
