@@ -7,7 +7,8 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
-import { drawArrow, drawHandles } from "../editor/drawingPrimitives";
+import { drawHandles } from "../editor/drawingPrimitives";
+import { drawShape } from "../editor/drawShape";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -459,9 +460,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       ctx.clip();
     }
     
-    shapes.forEach((shape) => drawShape(ctx, shape));
+    shapes.forEach((shape) => drawShape(ctx, shape, drawMosaic));
     if (currentShape) {
-      drawShape(ctx, currentShape);
+      drawShape(ctx, currentShape, drawMosaic);
     }
     ctx.restore();
 
@@ -497,113 +498,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       return hex.length === 1 ? "0" + hex : hex;
     };
     return "#" + toHex(r) + toHex(g) + toHex(b);
-  };
-
-  // Drawing Helper Functions
-  const drawShape = (ctx: CanvasRenderingContext2D, shape: Shape) => {
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    switch (shape.type) {
-      case "pen":
-        ctx.strokeStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        if (shape.points.length < 2) return;
-        ctx.beginPath();
-        ctx.moveTo(shape.points[0].x, shape.points[0].y);
-        for (let i = 1; i < shape.points.length; i++) {
-          ctx.lineTo(shape.points[i].x, shape.points[i].y);
-        }
-        ctx.stroke();
-        break;
-      case "highlighter":
-        ctx.strokeStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        if (shape.points.length < 2) return;
-        ctx.save();
-        ctx.globalAlpha = 0.45;
-        ctx.beginPath();
-        ctx.moveTo(shape.points[0].x, shape.points[0].y);
-        for (let i = 1; i < shape.points.length; i++) {
-          ctx.lineTo(shape.points[i].x, shape.points[i].y);
-        }
-        ctx.stroke();
-        ctx.restore();
-        break;
-      case "line":
-        ctx.strokeStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        if (shape.style === "dashed") {
-          ctx.setLineDash([6, 6]);
-        } else {
-          ctx.setLineDash([]);
-        }
-        ctx.beginPath();
-        ctx.moveTo(shape.start.x, shape.start.y);
-        ctx.lineTo(shape.end.x, shape.end.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        break;
-      case "arrow":
-        ctx.strokeStyle = shape.color;
-        ctx.fillStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        drawArrow(ctx, shape.start, shape.end, shape.width, shape.arrowStyle || "single");
-        break;
-      case "rect":
-        ctx.strokeStyle = shape.color;
-        ctx.fillStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        if (shape.style === "dashed") {
-          ctx.setLineDash([6, 6]);
-        } else {
-          ctx.setLineDash([]);
-        }
-        if (shape.fill) {
-          ctx.save();
-          ctx.globalAlpha = (shape.opacity ?? 100) / 100;
-          ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
-          ctx.restore();
-        } else {
-          ctx.strokeRect(shape.x, shape.y, shape.w, shape.h);
-        }
-        ctx.setLineDash([]);
-        break;
-      case "circle":
-        ctx.strokeStyle = shape.color;
-        ctx.fillStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        if (shape.style === "dashed") {
-          ctx.setLineDash([6, 6]);
-        } else {
-          ctx.setLineDash([]);
-        }
-        ctx.beginPath();
-        const rx = Math.abs(shape.w) / 2;
-        const ry = Math.abs(shape.h) / 2;
-        const cx = shape.x + shape.w / 2;
-        const cy = shape.y + shape.h / 2;
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-        if (shape.fill) {
-          ctx.save();
-          ctx.globalAlpha = (shape.opacity ?? 100) / 100;
-          ctx.fill();
-          ctx.restore();
-        } else {
-          ctx.stroke();
-        }
-        ctx.setLineDash([]);
-        break;
-      case "text":
-        ctx.fillStyle = shape.color;
-        ctx.font = `bold ${shape.size}px ${shape.fontFamily || "Inter, sans-serif"}`;
-        ctx.textBaseline = "top";
-        ctx.fillText(shape.text, shape.x, shape.y);
-        break;
-      case "mosaic":
-        drawMosaic(ctx, shape.x, shape.y, shape.w, shape.h, shape.intensity);
-        break;
-    }
   };
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
