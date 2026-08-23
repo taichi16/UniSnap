@@ -7,6 +7,38 @@ export interface EditorRect {
   h: number;
 }
 
+export function createSelectionRect(start: Point, current: Point): EditorRect {
+  return {
+    x: Math.min(current.x, start.x),
+    y: Math.min(current.y, start.y),
+    w: Math.abs(current.x - start.x),
+    h: Math.abs(current.y - start.y),
+  };
+}
+
+export function resizeEditorRect(rect: EditorRect, handle: string, point: Point): EditorRect {
+  let { x, y, w, h } = rect;
+  const right = x + w;
+  const bottom = y + h;
+  if (handle.includes("L")) {
+    x = Math.min(point.x, right - 10);
+    w = right - x;
+  }
+  if (handle.includes("R")) w = Math.max(10, point.x - x);
+  if (handle.includes("T")) {
+    y = Math.min(point.y, bottom - 10);
+    h = bottom - y;
+  }
+  if (handle.includes("B")) h = Math.max(10, point.y - y);
+  return { x, y, w, h };
+}
+
+export function moveEditorRect(rect: EditorRect, point: Point, offset: Point, bounds: { width: number; height: number }): EditorRect {
+  const x = Math.max(0, Math.min(bounds.width - rect.w, point.x - offset.x));
+  const y = Math.max(0, Math.min(bounds.height - rect.h, point.y - offset.y));
+  return { ...rect, x, y };
+}
+
 /** Returns the crop resize handle under a pointer, if any. */
 export function getHandleAt(point: Point, rect: EditorRect): string | null {
   const hitSize = 12;

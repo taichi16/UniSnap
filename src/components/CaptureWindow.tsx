@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clientToCanvasPoint, findTextShapeIndex, getHandleAt, isPointInRect } from "../editor/geometry";
+import { clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -595,11 +595,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
     if (isSelecting && cropRect) {
       // Selection dragging
-      const x = Math.min(clientPos.x, selectStart.x);
-      const y = Math.min(clientPos.y, selectStart.y);
-      const w = Math.abs(clientPos.x - selectStart.x);
-      const h = Math.abs(clientPos.y - selectStart.y);
-      setCropRect({ x, y, w, h });
+      setCropRect(createSelectionRect(selectStart, clientPos));
       return;
     }
 
@@ -617,34 +613,16 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
     if (resizeHandle && cropRect) {
       // Adjusting borders
-      let { x, y, w, h } = cropRect;
-      const right = x + w;
-      const bottom = y + h;
-
-      if (resizeHandle.includes("L")) {
-        x = Math.min(clientPos.x, right - 10);
-        w = right - x;
-      }
-      if (resizeHandle.includes("R")) {
-        w = Math.max(10, clientPos.x - x);
-      }
-      if (resizeHandle.includes("T")) {
-        y = Math.min(clientPos.y, bottom - 10);
-        h = bottom - y;
-      }
-      if (resizeHandle.includes("B")) {
-        h = Math.max(10, clientPos.y - y);
-      }
-
-      setCropRect({ x, y, w, h });
+      setCropRect(resizeEditorRect(cropRect, resizeHandle, clientPos));
       return;
     }
 
     if (isDraggingCrop && cropRect) {
       // Moving entire crop box
-        const nx = Math.max(0, Math.min((canvasRef.current?.width ?? window.innerWidth) - cropRect.w, clientPos.x - dragOffset.x));
-      const ny = Math.max(0, Math.min((canvasRef.current?.height ?? window.innerHeight) - cropRect.h, clientPos.y - dragOffset.y));
-      setCropRect({ ...cropRect, x: nx, y: ny });
+      setCropRect(moveEditorRect(cropRect, clientPos, dragOffset, {
+        width: canvasRef.current?.width ?? window.innerWidth,
+        height: canvasRef.current?.height ?? window.innerHeight,
+      }));
       return;
     }
 
@@ -682,13 +660,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     // Persist the exact last pointer position on selection completion.
     if ((isRecordMode || mode === "scroll") && isSelecting) {
       const point = toCanvasPoint(e.clientX, e.clientY);
-      const rect = {
-        x: Math.min(point.x, selectStart.x),
-        y: Math.min(point.y, selectStart.y),
-        w: Math.abs(point.x - selectStart.x),
-        h: Math.abs(point.y - selectStart.y),
-      };
-      setCropRect(rect);
+      setCropRect(createSelectionRect(selectStart, point));
     }
     setIsSelecting(false);
     setResizeHandle(null);
