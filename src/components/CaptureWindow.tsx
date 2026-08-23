@@ -1,6 +1,4 @@
 import React, { useState, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
@@ -8,7 +6,6 @@ import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
-import { getCaptureMonitorIndex } from "../editor/windowIdentity";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
@@ -39,6 +36,7 @@ import { useSaveScreenshot } from "../hooks/useSaveScreenshot";
 import { useConfirmScreenshot } from "../hooks/useConfirmScreenshot";
 import { useMosaicRenderer } from "../hooks/useMosaicRenderer";
 import { useCanvasExpansion } from "../hooks/useCanvasExpansion";
+import { useScrollCapture } from "../hooks/useScrollCapture";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -114,98 +112,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const scrollCancelRequestedRef = useRef(false);
   const [isStitching, setIsStitching] = useState(false);
 
-  const handleWindowScrollCapture = async () => {
-    if (isScrollingModeRef.current) return;
-    if (!cropRect || cropRect.w < 80 || cropRect.h < 80) {
-      showToast("請先框選單一可捲動內容區域");
-      return;
-    }
-    isScrollingModeRef.current = true;
-    scrollCancelRequestedRef.current = false;
-    setIsScrollingMode(true);
-    setIsStitching(true);
-
-    const win = getCurrentWindow();
-    const monitorIndex = getCaptureMonitorIndex(label);
-
-    // Close other capture windows on other monitors immediately so only one window remains
-    try {
-      const allWindows = await getAllWindows();
-      for (const w of allWindows) {
-        if (w.label.startsWith("capture_") && w.label !== win.label) {
-          await w.close();
-        }
-      }
-    } catch (e) {
-      console.warn("Could not close other windows", e);
-    }
-
-    // Hide overlay so background window receives events
-    await win.hide();
-
-
-    try {
-      const stitchedBase64 = await invoke<string>("auto_scroll_capture_window", {
-        monitorIndex,
-        selectionX: cropRect.x,
-        selectionY: cropRect.y,
-        selectionWidth: cropRect.w,
-        selectionHeight: cropRect.h,
-      });
-
-      const img = new Image();
-      img.src = stitchedBase64;
-      img.onload = async () => {
-        imageRef.current = img;
-        setImageLoaded(true);
-        if (canvasRef.current) {
-          canvasRef.current.width = img.width;
-          canvasRef.current.height = img.height;
-          setCropRect({ x: 0, y: 0, w: img.width, h: img.height });
-        }
-        setIsStitchedResult(true);
-        setShapes([]);
-        setIsStitching(false);
-        isScrollingModeRef.current = false;
-        setIsScrollingMode(false);
-        await win.show();
-        await win.setFocus();
-
-        // Auto-copy long screenshot to clipboard
-        try {
-          await invoke("copy_screenshot_to_clipboard", {
-            base64Image: stitchedBase64,
-          });
-          showToast(scrollCancelRequestedRef.current
-            ? "已中斷長截圖，已保留目前畫面並複製到剪貼簿"
-            : "長截圖完成並已複製到剪貼簿！可直接貼上使用");
-        } catch (e) {
-          showToast("長截圖完成！可直接複製或存檔");
-        }
-      };
-      img.onerror = async () => {
-        setIsStitching(false);
-        isScrollingModeRef.current = false;
-        setIsScrollingMode(false);
-        await win.show();
-        await win.setFocus();
-        showToast("長截圖載入失敗");
-      };
-    } catch (err: any) {
-      console.error("Auto scroll error:", err);
-      setIsStitching(false);
-      isScrollingModeRef.current = false;
-      setIsScrollingMode(false);
-      await win.show();
-      await win.setFocus();
-      showToast(`長截圖失敗：${String(err).slice(0, 60)}`);
-    }
-  };
-
-
-
-
-
   // Screen Recording State
   const [recordAudio, setRecordAudio] = useState(false);
   const [recordSystemAudio, setRecordSystemAudio] = useState(false);
@@ -214,6 +120,21 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [saveFormat, setSaveFormat] = useState<"png" | "jpg">("png");
   const isRecordMode = mode.toLowerCase().includes("record");
   const [isStitchedResult, setIsStitchedResult] = useState(false);
+  const handleWindowScrollCapture = useScrollCapture({
+    label,
+    cropRect,
+    imageRef,
+    canvasRef,
+    isScrollingModeRef,
+    scrollCancelRequestedRef,
+    setIsScrollingMode,
+    setIsStitching,
+    setIsStitchedResult,
+    setImageLoaded,
+    setCropRect,
+    setShapes,
+    showToast,
+  });
   // `main_editor_` is the Rust-side route contract for files opened from the
   // main window.  Keep it as a fallback in case a WebView restores a route
   // before its query parameters have been parsed.
