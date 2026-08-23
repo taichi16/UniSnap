@@ -15,6 +15,7 @@ import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle
 import { createShapeForTool } from "../editor/shapeFactory";
 import { rgbToHex } from "../editor/color";
 import { parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
+import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -628,25 +629,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
         y: Math.max(cropRect.y, Math.min(cropRect.y + cropRect.h, clientPos.y)),
       };
 
-      if (currentShape.type === "pen" || currentShape.type === "highlighter") {
-        setCurrentShape({
-          ...currentShape,
-          points: [...currentShape.points, lockedPos],
-        } as Shape);
-      } else if (currentShape.type === "line" || currentShape.type === "arrow") {
-        setCurrentShape({
-          ...currentShape,
-          end: lockedPos,
-        } as Shape);
-      } else if (currentShape.type === "rect" || currentShape.type === "circle" || currentShape.type === "mosaic") {
-        const w = lockedPos.x - currentShape.x;
-        const h = lockedPos.y - currentShape.y;
-        setCurrentShape({
-          ...currentShape,
-          w,
-          h,
-        } as Shape);
-      }
+      setCurrentShape(updateShapeEndpoint(currentShape, lockedPos));
     }
   };
 
