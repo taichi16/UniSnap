@@ -1,4 +1,4 @@
-import type { Point } from "./types";
+import type { Point, Shape } from "./types";
 
 export interface EditorRect {
   x: number;
@@ -34,6 +34,20 @@ export function isPointInRect(point: Point, rect: EditorRect): boolean {
     && point.x <= rect.x + rect.w
     && point.y >= rect.y
     && point.y <= rect.y + rect.h;
+}
+
+/** Finds the topmost text annotation under a pointer. */
+export function findTextShapeIndex(shapes: Shape[], point: Point): number | undefined {
+  return [...shapes.keys()].reverse().find((index) => {
+    const shape = shapes[index];
+    if (shape.type !== "text") return false;
+    const width = Math.max(32, shape.text.length * shape.size * 0.72);
+    const height = Math.max(28, shape.size * 1.8);
+    return point.x >= shape.x - 8
+      && point.x <= shape.x + width + 8
+      && point.y >= shape.y - height
+      && point.y <= shape.y + height;
+  });
 }
 
 /** Converts a browser pointer position into the canvas' native pixel space. */

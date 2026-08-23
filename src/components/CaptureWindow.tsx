@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clientToCanvasPoint, getHandleAt, isPointInRect } from "../editor/geometry";
+import { clientToCanvasPoint, findTextShapeIndex, getHandleAt, isPointInRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -536,14 +536,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     // Text annotations remain movable until the image is saved. Handle this
     // before the active-tool branch so the user can drag a label immediately
     // after typing, without having to reselect the pointer tool first.
-    const textIndex = [...shapes.keys()].reverse().find((index) => {
-      const shape = shapes[index];
-      if (shape.type !== "text") return false;
-      const width = Math.max(32, shape.text.length * shape.size * 0.72);
-      const height = Math.max(28, shape.size * 1.8);
-      return clientPos.x >= shape.x - 8 && clientPos.x <= shape.x + width + 8
-        && clientPos.y >= shape.y - height && clientPos.y <= shape.y + height;
-    });
+    const textIndex = findTextShapeIndex(shapes, clientPos);
     if (textIndex !== undefined) {
       const shape = shapes[textIndex];
       if (shape.type === "text") {
