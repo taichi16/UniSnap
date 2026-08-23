@@ -3,7 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
 import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
@@ -38,6 +37,7 @@ import { useOcr } from "../hooks/useOcr";
 import { useCanvasCoordinates } from "../hooks/useCanvasCoordinates";
 import { useCopyScreenshot } from "../hooks/useCopyScreenshot";
 import { usePinScreenshot } from "../hooks/usePinScreenshot";
+import { useSaveScreenshot } from "../hooks/useSaveScreenshot";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -474,35 +474,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   const handleCopyOnly = useCopyScreenshot(canvasRef, cropRect, imageLoaded, showToast);
 
-  const handleSave = async () => {
-    const base64 = getCroppedCanvasBase64();
-    if (!base64) return;
-
-    try {
-      // Prompt user to save as a file
-      const filepath = await save({
-        filters: saveFormat === "png"
-          ? [{ name: "PNG 圖片", extensions: ["png"] }]
-          : [{ name: "JPG 圖片", extensions: ["jpg", "jpeg"] }],
-        defaultPath: saveFormat === "png" ? "Screenshot.png" : "Screenshot.jpg",
-      });
-
-      if (filepath) {
-        await invoke("save_and_copy_screenshot", {
-          base64Image: base64,
-          savePath: filepath,
-          autoCopy: false,
-        });
-        showToast("圖片已儲存");
-        setTimeout(async () => {
-          await closeEditor();
-        }, 600);
-      }
-    } catch (err) {
-      console.error("Save error:", err);
-      showToast("儲存失敗");
-    }
-  };
+  const handleSave = useSaveScreenshot(canvasRef, cropRect, saveFormat, closeEditor, showToast);
 
   const handleConfirm = async () => {
     const base64 = getCroppedCanvasBase64();
