@@ -8,8 +8,6 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::SampleFormat;
 use mp4::{
     AacConfig, AvcConfig, Bytes, ChannelConfig, FourCC, Mp4Config, Mp4Sample, Mp4Writer,
     SampleFreqIndex, TrackConfig,
@@ -19,6 +17,7 @@ use openh264::encoder::{
 };
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use crate::record_types::{RecordingResult, ScrollConfig};
+use crate::audio_capture::{start_audio_capture, AudioCapture};
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -175,96 +174,6 @@ struct CaptureRegion {
     height: u32,
     canvas_width: u32,
     canvas_height: u32,
-}
-
-struct AudioCapture {
-    stream: cpal::Stream,
-    samples: Arc<Mutex<Vec<f32>>>,
-    channels: u16,
-    sample_rate: u32,
-}
-
-fn start_audio_capture() -> Result<AudioCapture, String> {
-    let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| "找不到麥克風輸入裝置，請確認系統已連接麥克風".to_string())?;
-    let config = device
-        .default_input_config()
-        .map_err(|e| format!("無法讀取麥克風設定，請確認已允許麥克風權限：{e}"))?;
-    let channels = config.channels();
-    let sample_rate = config.sample_rate();
-    if !(1..=2).contains(&channels) {
-        return Err(format!(
-            "目前只支援單聲道或雙聲道麥克風（偵測到 {channels} 聲道）"
-        ));
-    }
-    let samples = Arc::new(Mutex::new(Vec::<f32>::new()));
-    let target = Arc::clone(&samples);
-    let err_fn = |error| eprintln!("[record] 麥克風串流錯誤：{error}");
-    let stream_config: cpal::StreamConfig = config.clone().into();
-    let stream = match config.sample_format() {
-        SampleFormat::F32 => device.build_input_stream(
-            stream_config.clone(),
-            move |data: &[f32], _| append_audio(data, &target),
-            err_fn,
-            None,
-        ),
-        SampleFormat::I16 => device.build_input_stream(
-            stream_config.clone(),
-            move |data: &[i16], _| append_audio_i16(data, &target),
-            err_fn,
-            None,
-        ),
-        SampleFormat::I32 => device.build_input_stream(
-            stream_config.clone(),
-            move |data: &[i32], _| append_audio_i32(data, &target),
-            err_fn,
-            None,
-        ),
-        SampleFormat::U8 => device.build_input_stream(
-            stream_config.clone(),
-            move |data: &[u8], _| append_audio_u8(data, &target),
-            err_fn,
-            None,
-        ),
-        format => return Err(format!("麥克風格式 {format:?} 尚未支援")),
-    }
-    .map_err(|e| format!("建立麥克風串流失敗，請確認麥克風權限：{e}"))?;
-    stream
-        .play()
-        .map_err(|e| format!("啟動麥克風失敗，請確認麥克風權限：{e}"))?;
-    eprintln!(
-        "[record] microphone ready rate={} channels={}",
-        sample_rate, channels
-    );
-    Ok(AudioCapture {
-        stream,
-        samples,
-        channels,
-        sample_rate,
-    })
-}
-
-fn append_audio(data: &[f32], target: &Arc<Mutex<Vec<f32>>>) {
-    if let Ok(mut samples) = target.lock() {
-        samples.extend_from_slice(data);
-    }
-}
-fn append_audio_i16(data: &[i16], target: &Arc<Mutex<Vec<f32>>>) {
-    if let Ok(mut samples) = target.lock() {
-        samples.extend(data.iter().map(|v| *v as f32 / 32768.0));
-    }
-}
-fn append_audio_i32(data: &[i32], target: &Arc<Mutex<Vec<f32>>>) {
-    if let Ok(mut samples) = target.lock() {
-        samples.extend(data.iter().map(|v| *v as f32 / 2147483648.0));
-    }
-}
-fn append_audio_u8(data: &[u8], target: &Arc<Mutex<Vec<f32>>>) {
-    if let Ok(mut samples) = target.lock() {
-        samples.extend(data.iter().map(|v| (*v as f32 - 128.0) / 128.0));
-    }
 }
 
 impl FrameSource {
