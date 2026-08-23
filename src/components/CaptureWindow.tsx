@@ -29,6 +29,7 @@ import { useToastMessage } from "../hooks/useToastMessage";
 import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionInitialization";
 import { useColorPicker } from "../hooks/useColorPicker";
 import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
+import { useEditorKeyboardShortcuts } from "../hooks/useEditorKeyboardShortcuts";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -353,39 +354,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // a selection and a visible editing toolbar even if the image load event
   // is delivered before React has committed the canvas.
   useEditorSelectionInitialization(isMainEditor, imageLoaded, editorImageSize, cropRect, setCropRect);
-
-  // Keyboard shortcut listener ('Cmd+C' / 'Ctrl+C' for copy, 'C' for color picker, 'Esc' to exit)
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Before scrolling begins, Escape cancels the whole long-screenshot
-        // flow. During scrolling, let Rust finish the frames already captured.
-        await cancelScrollFlow();
-      } else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
-        // Cmd+C or Ctrl+C: Copy current cropped screenshot to clipboard
-        e.preventDefault();
-        await handleCopyOnly();
-      } else if (!e.metaKey && !e.ctrlKey && (e.key === "c" || e.key === "C")) {
-        if (!cropRect && hoverColor) {
-          await writeText(hoverColor);
-          showToast(`已複製顏色: ${hoverColor}`);
-          setTimeout(async () => {
-            await closeEditor();
-          }, 600);
-        }
-      } else if (mode === "record" && cropRect && e.key === "Enter" && !isStartingRecording) {
-        // Full-monitor selections can place the toolbar under the system
-        // menu bar or Dock. Enter remains a reliable start shortcut.
-        e.preventDefault();
-        await startRecordingControl();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cropRect, hoverColor, isScrollingMode, shapes, mode, isStartingRecording]);
-
-
-
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
     if (!imageRef.current) return;
@@ -763,6 +731,21 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
 
   // Fix 4: Positioning floating toolbar - stays fixed at bottom when fullscreen selected
+  useEditorKeyboardShortcuts({
+    cropRect,
+    hoverColor,
+    isScrollingMode,
+    shapes,
+    mode,
+    isStartingRecording,
+    cancelScrollFlow,
+    handleCopyOnly,
+    startRecordingControl,
+    writeColor: writeText,
+    showToast,
+    closeEditor,
+  });
+
   const getToolbarStyle = (): React.CSSProperties => {
     const canvas = canvasRef.current;
     const bounds = canvas?.getBoundingClientRect();
