@@ -11,10 +11,10 @@ import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../edit
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
 import ExpandCanvasDialog from "./ExpandCanvasDialog";
+import OcrResultModal from "./OcrResultModal";
 import RecordingSelectionControls from "./RecordingSelectionControls";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import {
-  X,
 } from "lucide-react";
 
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
@@ -1524,28 +1524,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* OCR Result Overlay Modal */}
       {ocrText && (
-        <div className="ocr-result-modal" onMouseDown={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600 }}>OCR 辨識結果 (已複製)</h3>
-            <button
-              onClick={() => setOcrText(null)}
-              style={{ background: "transparent", border: "none", cursor: "pointer", color: "#aaa" }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <textarea
-            className="ocr-textarea"
-            value={ocrText}
-            readOnly
-            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button className="btn btn-primary" onClick={() => setOcrText(null)}>
-              確認
-            </button>
-          </div>
-        </div>
+        <OcrResultModal text={ocrText} onClose={() => setOcrText(null)} />
       )}
 
 
