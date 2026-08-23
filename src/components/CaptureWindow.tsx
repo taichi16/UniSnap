@@ -28,6 +28,7 @@ import StitchingOverlay from "./StitchingOverlay";
 import ToastMessage from "./ToastMessage";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { useToastMessage } from "../hooks/useToastMessage";
 import {
 } from "lucide-react";
 
@@ -100,7 +101,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [expandValues, setExpandValues] = useState({ top: "0", right: "0", bottom: "0", left: "0" });
 
   // Toast status
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const { toastMessage: toastMsg, showToast } = useToastMessage();
 
   // Scrolling Capture State
   const [isScrollingMode, setIsScrollingMode] = useState(false);
@@ -467,11 +468,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       // Ignore boundary errors
     }
   }, [mousePos, imageLoaded, cropRect]);
-
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 2000);
-  };
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
     if (!imageRef.current) return;
