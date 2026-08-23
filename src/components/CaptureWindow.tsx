@@ -13,6 +13,7 @@ import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool } from "../editor/shapeFactory";
+import { rgbToHex } from "../editor/color";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -494,14 +495,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2000);
-  };
-
-  const rgbToHex = (r: number, g: number, b: number) => {
-    const toHex = (c: number) => {
-      const hex = c.toString(16);
-      return hex.length === 1 ? "0" + hex : hex;
-    };
-    return "#" + toHex(r) + toHex(g) + toHex(b);
   };
 
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
