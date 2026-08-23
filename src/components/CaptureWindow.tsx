@@ -12,6 +12,7 @@ import { clientToCanvasPoint, findTextShapeIndex, getHandleAt, isPointInRect } f
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
+import { createShapeForTool } from "../editor/shapeFactory";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -570,20 +571,17 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       // Draw annotations inside crop selection
       if (!isPointInRect(clientPos, cropRect)) return;
 
-      if (activeTool === "pen") {
-        setCurrentShape({ type: "pen", points: [clientPos], color: strokeColor, width: strokeWidth });
-      } else if (activeTool === "highlighter") {
-        setCurrentShape({ type: "highlighter", points: [clientPos], color: strokeColor, width: 16 });
-      } else if (activeTool === "line") {
-        setCurrentShape({ type: "line", start: clientPos, end: clientPos, color: strokeColor, width: strokeWidth, style: lineStyle });
-      } else if (activeTool === "arrow") {
-        setCurrentShape({ type: "arrow", start: clientPos, end: clientPos, color: strokeColor, width: strokeWidth, arrowStyle });
-      } else if (activeTool === "rect") {
-        setCurrentShape({ type: "rect", x: clientPos.x, y: clientPos.y, w: 0, h: 0, color: strokeColor, width: strokeWidth, fill: fillShape, style: lineStyle, opacity: fillOpacity });
-      } else if (activeTool === "circle") {
-        setCurrentShape({ type: "circle", x: clientPos.x, y: clientPos.y, w: 0, h: 0, color: strokeColor, width: strokeWidth, fill: fillShape, style: lineStyle, opacity: fillOpacity });
-      } else if (activeTool === "mosaic") {
-        setCurrentShape({ type: "mosaic", x: clientPos.x, y: clientPos.y, w: 0, h: 0, intensity: mosaicIntensity });
+      const shape = createShapeForTool(activeTool, clientPos, {
+        color: strokeColor,
+        width: strokeWidth,
+        fill: fillShape,
+        opacity: fillOpacity,
+        mosaicIntensity,
+        lineStyle,
+        arrowStyle,
+      });
+      if (shape) {
+        setCurrentShape(shape);
       } else if (activeTool === "text") {
         setTextInput({ x: clientPos.x, y: clientPos.y, text: "" });
         setTimeout(() => textInputRef.current?.focus(), 50);
