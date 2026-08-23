@@ -6,7 +6,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Arc, Mutex,
 };
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use mp4::{
     AacConfig, AvcConfig, Bytes, ChannelConfig, FourCC, Mp4Config, Mp4Sample, Mp4Writer,
@@ -20,6 +20,7 @@ use crate::record_types::{RecordingResult, ScrollConfig};
 use crate::audio_capture::{start_audio_capture, AudioCapture};
 use crate::frame_source::{CaptureRegion, FrameSource};
 use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
+use crate::recording_output::recording_output_path;
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -358,17 +359,6 @@ pub fn stop_recording(state: tauri::State<'_, RecordingState>) -> Result<Recordi
             .map_err(|e| e)
     );
     result
-}
-
-fn recording_output_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let config = crate::config::load_config(app.clone()).unwrap_or_default();
-    let directory = PathBuf::from(config.save_directory);
-    fs::create_dir_all(&directory).map_err(|e| format!("無法建立錄影存檔資料夾：{e}"))?;
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    Ok(directory.join(format!("ScreenRec_{millis}.mp4")))
 }
 
 fn strip_start_code(nal: &[u8]) -> &[u8] {
@@ -724,6 +714,7 @@ pub fn trigger_scroll_capture(config: ScrollConfig) -> Result<String, String> {
 #[cfg(test)]
 mod recording_tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn writes_readable_h264_mp4() {
