@@ -14,6 +14,7 @@ import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
 import { expandSelectedCanvas, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { getCaptureMonitorIndex } from "../editor/windowIdentity";
+import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -63,19 +64,11 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [arrowStyle, setArrowStyle] = useState<ArrowStyle>("single");
   // Fix 1: Font selection for text tool
   const [textFont, setTextFont] = useState("Inter, sans-serif");
-  const fontOptions = [
-    { label: "預設 (Inter)", value: "Inter, sans-serif" },
-    { label: "Arial", value: "Arial, sans-serif" },
-    { label: "Georgia", value: "Georgia, serif" },
-    { label: "Courier", value: "Courier New, monospace" },
-    { label: "黑體", value: "PingFang TC, Microsoft JhengHei, sans-serif" },
-  ];
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [currentShape, setCurrentShape] = useState<Shape | null>(null);
 
   // Color palette helpers
   const [showColorPalette, setShowColorPalette] = useState(false);
-  const colorsList = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffffff", "#000000"];
 
   const chooseTool = (tool: Tool) => {
     setShowColorPalette(false);
@@ -884,11 +877,11 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
               <ToolOptionsPopover
                 activeTool={activeTool}
                 showColorPalette={showColorPalette}
-                colors={colorsList}
+                colors={EDITOR_COLORS}
                 strokeColor={strokeColor}
                 onChooseColor={(color) => { setStrokeColor(color); setShowColorPalette(false); }}
                 textFont={textFont}
-                fontOptions={fontOptions}
+                fontOptions={EDITOR_FONT_OPTIONS}
                 onTextFontChange={setTextFont}
                 strokeWidth={strokeWidth}
                 onStrokeWidthChange={setStrokeWidth}
