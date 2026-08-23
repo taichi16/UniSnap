@@ -6,8 +6,6 @@ import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
-import { drawHandles } from "../editor/drawingPrimitives";
-import { drawShape } from "../editor/drawShape";
 import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
@@ -30,6 +28,7 @@ import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useToastMessage } from "../hooks/useToastMessage";
 import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionInitialization";
 import { useColorPicker } from "../hooks/useColorPicker";
+import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
 import {
 } from "lucide-react";
 
@@ -391,69 +390,15 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
 
 
-  // Redraw loop
-  useEffect(() => {
-    if (!imageLoaded || !canvasRef.current || !imageRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw background screenshot
-    ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-
-    // Draw overlay dimming outside selection
-    if (!cropRect) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } else {
-      // Dim outside of cropRect
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-      // Top
-      ctx.fillRect(0, 0, canvas.width, cropRect.y);
-      // Bottom
-      ctx.fillRect(0, cropRect.y + cropRect.h, canvas.width, canvas.height - (cropRect.y + cropRect.h));
-      // Left
-      ctx.fillRect(0, cropRect.y, cropRect.x, cropRect.h);
-      // Right
-      ctx.fillRect(cropRect.x + cropRect.w, cropRect.y, canvas.width - (cropRect.x + cropRect.w), cropRect.h);
-
-      // Draw bright border around selection
-      ctx.strokeStyle = "rgba(99, 102, 241, 0.9)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-
-      // Draw resize handles (small squares)
-      drawHandles(ctx, cropRect);
-    }
-
-    // Draw all shapes in history
-    ctx.save();
-    // Clip drawing area to cropRect to prevent annotations spilling out of screenshot
-    if (cropRect) {
-      ctx.beginPath();
-      ctx.rect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-      ctx.clip();
-    }
-    
-    shapes.forEach((shape) => drawShape(ctx, shape, drawMosaic));
-    if (currentShape) {
-      drawShape(ctx, currentShape, drawMosaic);
-    }
-    ctx.restore();
-
-  }, [imageLoaded, cropRect, shapes, currentShape]);
-
-  useColorPicker(imageRef, imageLoaded, cropRect, mousePos, setHoverColor);
-
   const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
     if (!imageRef.current) return;
     // Keep the established editor sampling dimensions while moving the pixel
     // processing implementation out of the window component.
     drawMosaicPixels(ctx, imageRef.current, rx, ry, rw, rh, size, window.innerWidth, window.innerHeight);
   };
+
+  useCanvasRedraw(canvasRef, imageRef, imageLoaded, cropRect, shapes, currentShape, drawMosaic);
+  useColorPicker(imageRef, imageLoaded, cropRect, mousePos, setHoverColor);
 
   // The editor window may fit a large image inside the available screen. Keep
   // pointer coordinates in the image's native pixel space so crop and
