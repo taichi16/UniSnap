@@ -9,19 +9,10 @@ import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
+import EditorToolButtons from "./EditorToolButtons";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import {
-  Pencil,
-  MoveRight,
-  Minus,
-  Square,
-  Circle as CircleIcon,
-  Type,
-  Grid,
-  Highlighter,
   X,
-  Crop,
-  Maximize2
 } from "lucide-react";
 
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
@@ -1479,83 +1470,11 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       {(cropRect || isMainEditor) && !isRecordMode && (
         <div ref={toolbarRef} className="toolbar-floating" style={getToolbarStyle()} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
           <>
-              <button
-                className={`toolbar-btn ${activeTool === "select" ? "active" : ""}`}
-                onClick={() => chooseTool("select")}
-                data-tooltip="裁切／框選調整"
-              >
-                <Crop size={16} />
-              </button>
-
-              <button className="toolbar-btn" onClick={handleExpandCanvas} data-tooltip="擴增空白畫布">
-                <Maximize2 size={16} />
-              </button>
-              
-              <button
-                className={`toolbar-btn ${activeTool === "pen" ? "active" : ""}`}
-                onClick={() => chooseTool("pen")}
-                data-tooltip="筆型標記"
-              >
-                <Pencil size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "highlighter" ? "active" : ""}`}
-                onClick={() => chooseTool("highlighter")}
-                data-tooltip="螢光標示"
-              >
-                <Highlighter size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "arrow" ? "active" : ""}`}
-                onClick={() => chooseTool("arrow")}
-                data-tooltip="指示箭頭"
-              >
-                <MoveRight size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "line" ? "active" : ""}`}
-                onClick={() => chooseTool("line")}
-                data-tooltip="直線/虛線"
-              >
-                <Minus size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "rect" ? "active" : ""}`}
-                onClick={() => chooseTool("rect")}
-                data-tooltip="畫矩形"
-              >
-                <Square size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "circle" ? "active" : ""}`}
-                onClick={() => chooseTool("circle")}
-                data-tooltip="畫橢圓/圓形"
-              >
-                <CircleIcon size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "text" ? "active" : ""}`}
-                onClick={() => chooseTool("text")}
-                data-tooltip="文字打字"
-              >
-                <Type size={16} />
-              </button>
-
-              <button
-                className={`toolbar-btn ${activeTool === "mosaic" ? "active" : ""}`}
-                onClick={() => chooseTool("mosaic")}
-                data-tooltip="馬賽克"
-              >
-                <Grid size={16} />
-              </button>
-
-              <div className="toolbar-divider"></div>
+              <EditorToolButtons
+                activeTool={activeTool}
+                onChooseTool={chooseTool}
+                onExpandCanvas={handleExpandCanvas}
+              />
 
               {/* Color Selector */}
               <button
