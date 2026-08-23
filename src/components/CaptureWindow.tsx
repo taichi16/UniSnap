@@ -7,6 +7,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
+import { drawArrow, drawHandles } from "../editor/drawingPrimitives";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -499,29 +500,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   };
 
   // Drawing Helper Functions
-  const drawHandles = (ctx: CanvasRenderingContext2D, rect: { x: number; y: number; w: number; h: number }) => {
-    const size = 6;
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "var(--accent-color)";
-    ctx.lineWidth = 1.5;
-
-    const points = [
-      { x: rect.x, y: rect.y }, // TL
-      { x: rect.x + rect.w / 2, y: rect.y }, // TM
-      { x: rect.x + rect.w, y: rect.y }, // TR
-      { x: rect.x + rect.w, y: rect.y + rect.h / 2 }, // MR
-      { x: rect.x + rect.w, y: rect.y + rect.h }, // BR
-      { x: rect.x + rect.w / 2, y: rect.y + rect.h }, // BM
-      { x: rect.x, y: rect.y + rect.h }, // BL
-      { x: rect.x, y: rect.y + rect.h / 2 }, // ML
-    ];
-
-    points.forEach((p) => {
-      ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
-      ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
-    });
-  };
-
   const drawShape = (ctx: CanvasRenderingContext2D, shape: Shape) => {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -625,105 +603,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       case "mosaic":
         drawMosaic(ctx, shape.x, shape.y, shape.w, shape.h, shape.intensity);
         break;
-    }
-  };
-
-  const drawArrowHead = (
-    ctx: CanvasRenderingContext2D,
-    tip: Point,
-    angle: number,
-    headLength: number,
-    style: ArrowStyle
-  ) => {
-    if (style === "chevron") {
-      // Hollow chevron / open arrowhead
-      const a = Math.PI / 5;
-      ctx.beginPath();
-      ctx.moveTo(tip.x - headLength * Math.cos(angle - a), tip.y - headLength * Math.sin(angle - a));
-      ctx.lineTo(tip.x, tip.y);
-      ctx.lineTo(tip.x - headLength * Math.cos(angle + a), tip.y - headLength * Math.sin(angle + a));
-      ctx.stroke();
-    } else if (style === "block") {
-      // Solid rectangular block arrowhead
-      const bw = headLength * 0.6; // block width (perpendicular)
-      const bh = headLength;       // block depth
-      const perp = angle + Math.PI / 2;
-      const baseX = tip.x - bh * Math.cos(angle);
-      const baseY = tip.y - bh * Math.sin(angle);
-      ctx.beginPath();
-      ctx.moveTo(tip.x, tip.y);
-      ctx.lineTo(baseX + bw * Math.cos(perp), baseY + bw * Math.sin(perp));
-      ctx.lineTo(baseX - bw * Math.cos(perp), baseY - bw * Math.sin(perp));
-      ctx.closePath();
-      ctx.fill();
-    } else {
-      // Default solid triangle head
-      const arrowAngle = Math.PI / 6;
-      const x1 = tip.x - headLength * Math.cos(angle - arrowAngle);
-      const y1 = tip.y - headLength * Math.sin(angle - arrowAngle);
-      const x2 = tip.x - headLength * Math.cos(angle + arrowAngle);
-      const y2 = tip.y - headLength * Math.sin(angle + arrowAngle);
-      ctx.beginPath();
-      ctx.moveTo(tip.x, tip.y);
-      ctx.lineTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.closePath();
-      ctx.fill();
-    }
-  };
-
-  const drawArrow = (ctx: CanvasRenderingContext2D, start: Point, end: Point, width: number, style: ArrowStyle = "single") => {
-    const angle = Math.atan2(end.y - start.y, end.x - start.x);
-    const headLength = Math.max(14, width * 4);
-    const isChevron = style === "chevron";
-
-    if (style === "curve") {
-      // Quadratic bezier curve arrow
-      const mx = (start.x + end.x) / 2;
-      const my = (start.y + end.y) / 2;
-      const cpx = mx - (end.y - start.y) * 0.3;
-      const cpy = my + (end.x - start.x) * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.quadraticCurveTo(cpx, cpy, end.x, end.y);
-      ctx.stroke();
-      // Arrow head at end tangent
-      const tangentAngle = Math.atan2(end.y - cpy, end.x - cpx);
-      drawArrowHead(ctx, end, tangentAngle, headLength, style);
-      return;
-    }
-
-    if (style === "elbow") {
-      // Right-angle elbow arrow: horizontal then vertical
-      const midX = end.x;
-      const midY = start.y;
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(midX, midY);
-      ctx.lineTo(end.x, end.y - (end.y > start.y ? headLength / 2 : -headLength / 2));
-      ctx.stroke();
-      const elbowAngle = end.y >= start.y ? Math.PI / 2 : -Math.PI / 2;
-      drawArrowHead(ctx, end, elbowAngle, headLength, "single");
-      return;
-    }
-
-    // For single / double / chevron / block: draw shaft
-    const shaftEndX = end.x - (isChevron ? 0 : headLength / 2) * Math.cos(angle);
-    const shaftEndY = end.y - (isChevron ? 0 : headLength / 2) * Math.sin(angle);
-    const shaftStartX = style === "double" ? start.x + headLength / 2 * Math.cos(angle) : start.x;
-    const shaftStartY = style === "double" ? start.y + headLength / 2 * Math.sin(angle) : start.y;
-
-    ctx.beginPath();
-    ctx.moveTo(shaftStartX, shaftStartY);
-    ctx.lineTo(shaftEndX, shaftEndY);
-    ctx.stroke();
-
-    // Draw end arrowhead
-    drawArrowHead(ctx, end, angle, headLength, style);
-
-    // Draw start arrowhead for double
-    if (style === "double") {
-      drawArrowHead(ctx, start, angle + Math.PI, headLength, "single");
     }
   };
 
