@@ -8,6 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { calculateToolbarPlacement } from "../editor/toolbarLayout";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
+import ToolOptionsPopover from "./ToolOptionsPopover";
 import {
   Pencil,
   MoveRight,
@@ -24,7 +25,6 @@ import {
   Copy,
   X,
   Check,
-  ChevronRight,
   Crop,
   Maximize2
 } from "lucide-react";
@@ -1572,148 +1572,28 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
                 <div style={{ width: 14, height: 14, borderRadius: "50%", background: strokeColor, border: "1px solid #fff" }}></div>
               </button>
               
-              {showColorPalette && (
-                <div className="color-picker-popover">
-                  {colorsList.map((col) => (
-                    <div
-                      key={col}
-                      className={`color-dot ${strokeColor === col ? "selected" : ""}`}
-                      style={{ backgroundColor: col }}
-                      onClick={() => {
-                        setStrokeColor(col);
-                        setShowColorPalette(false);
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Tool Options Popups */}
-              {!showColorPalette && activeTool === "text" && (
-                <div className="sub-toolbar">
-                  <label>字型:</label>
-                  <select
-                    value={textFont}
-                    onChange={(e) => setTextFont(e.target.value)}
-                    style={{
-                      fontSize: 11,
-                      background: "rgba(30,30,40,0.8)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      borderRadius: 4,
-                      padding: "2px 4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {fontOptions.map((f) => (
-                      <option key={f.value} value={f.value}>{f.label}</option>
-                    ))}
-                  </select>
-                  <label style={{ marginLeft: 8 }}>大小:</label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="12"
-                    value={strokeWidth}
-                    style={{ width: 60, accentColor: "var(--accent-color)" }}
-                    onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
-                  />
-                  <span style={{ fontSize: 11, minWidth: 28 }}>{strokeWidth * 6}px</span>
-                </div>
-              )}
-              {!showColorPalette && activeTool !== "select" && activeTool !== "highlighter" && activeTool !== "text" && (
-                <div className="sub-toolbar">
-                  {activeTool !== "mosaic" && (
-                    <>
-                      <label>粗細:</label>
-                      <input
-                        type="range"
-                        min="1"
-                        max="15"
-                        value={strokeWidth}
-                        style={{ width: 60, accentColor: "var(--accent-color)" }}
-                        onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
-                      />
-                    </>
-                  )}
-                  {/* Arrow style selector */}
-                  {activeTool === "arrow" && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <ChevronRight size={12} />
-                      <select
-                        value={arrowStyle}
-                        onChange={(e) => setArrowStyle(e.target.value as ArrowStyle)}
-                        style={{
-                          fontSize: 11,
-                          background: "rgba(30,30,40,0.9)",
-                          color: "#fff",
-                          border: "1px solid rgba(255,255,255,0.2)",
-                          borderRadius: 4,
-                          padding: "2px 4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <option value="single">單向箭頭 →</option>
-                        <option value="double">雙向箭頭 ↔</option>
-                        <option value="curve">曲線箭頭 ↝</option>
-                        <option value="elbow">折線箭頭 ↳</option>
-                        <option value="chevron">人字形 ›</option>
-                        <option value="block">粗體實心 ▶</option>
-                      </select>
-                    </label>
-                  )}
-                  {(activeTool === "rect" || activeTool === "circle") && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={fillShape}
-                        onChange={(e) => setFillShape(e.target.checked)}
-                      />
-                      實心
-                    </label>
-                  )}
-                  {/* Opacity slider - only shown when fill is enabled */}
-                  {(activeTool === "rect" || activeTool === "circle") && fillShape && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      透明度:
-                      <input
-                        type="range"
-                        min="10"
-                        max="100"
-                        step="5"
-                        value={fillOpacity}
-                        style={{ width: 55, accentColor: "var(--accent-color)" }}
-                        onChange={(e) => setFillOpacity(parseInt(e.target.value))}
-                      />
-                      <span style={{ fontSize: 10, minWidth: 28 }}>{fillOpacity}%</span>
-                    </label>
-                  )}
-                  {(activeTool === "line" || activeTool === "rect" || activeTool === "circle") && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginLeft: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={lineStyle === "dashed"}
-                        onChange={(e) => setLineStyle(e.target.checked ? "dashed" : "solid")}
-                      />
-                      虛線
-                    </label>
-                  )}
-                  {activeTool === "mosaic" && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      強度:
-                      <input
-                        type="range"
-                        min="4"
-                        max="24"
-                        step="2"
-                        value={mosaicIntensity}
-                        style={{ width: 60, accentColor: "var(--accent-color)" }}
-                        onChange={(e) => setMosaicIntensity(parseInt(e.target.value))}
-                      />
-                    </label>
-                  )}
-                </div>
-              )}
+              <ToolOptionsPopover
+                activeTool={activeTool}
+                showColorPalette={showColorPalette}
+                colors={colorsList}
+                strokeColor={strokeColor}
+                onChooseColor={(color) => { setStrokeColor(color); setShowColorPalette(false); }}
+                textFont={textFont}
+                fontOptions={fontOptions}
+                onTextFontChange={setTextFont}
+                strokeWidth={strokeWidth}
+                onStrokeWidthChange={setStrokeWidth}
+                arrowStyle={arrowStyle}
+                onArrowStyleChange={setArrowStyle}
+                fillShape={fillShape}
+                onFillShapeChange={setFillShape}
+                fillOpacity={fillOpacity}
+                onFillOpacityChange={setFillOpacity}
+                lineStyle={lineStyle}
+                onLineStyleChange={setLineStyle}
+                mosaicIntensity={mosaicIntensity}
+                onMosaicIntensityChange={setMosaicIntensity}
+              />
 
               <button className="toolbar-btn" onClick={handleUndo} disabled={shapes.length === 0} data-tooltip="復原">
                 <RotateCcw size={16} />
