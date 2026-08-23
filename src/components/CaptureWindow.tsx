@@ -29,6 +29,7 @@ import ToastMessage from "./ToastMessage";
 import ToolOptionsPopover from "./ToolOptionsPopover";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { useToastMessage } from "../hooks/useToastMessage";
+import { useEditorSelectionInitialization } from "../hooks/useEditorSelectionInitialization";
 import {
 } from "lucide-react";
 
@@ -355,12 +356,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // This guarantees that an old file opened from the native file picker has
   // a selection and a visible editing toolbar even if the image load event
   // is delivered before React has committed the canvas.
-  useEffect(() => {
-    if (!isMainEditor || !imageLoaded || cropRect) return;
-    const width = editorImageSize?.width ?? window.innerWidth;
-    const height = editorImageSize?.height ?? window.innerHeight;
-    setCropRect({ x: 0, y: 0, w: width, h: height });
-  }, [isMainEditor, imageLoaded, cropRect, editorImageSize]);
+  useEditorSelectionInitialization(isMainEditor, imageLoaded, editorImageSize, cropRect, setCropRect);
 
   // Keyboard shortcut listener ('Cmd+C' / 'Ctrl+C' for copy, 'C' for color picker, 'Esc' to exit)
   useEffect(() => {
