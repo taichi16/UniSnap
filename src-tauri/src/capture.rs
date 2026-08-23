@@ -7,6 +7,7 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
 use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
+use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -73,22 +74,6 @@ fn work_area_crop_bounds(
         width,
         height,
     })
-}
-
-pub fn rgba_to_jpeg_data_url(image: &RgbaImage) -> Result<String, String> {
-    let rgb = image::DynamicImage::ImageRgba8(image.clone()).into_rgb8();
-    let mut buffer = Vec::new();
-    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 95);
-    encoder
-        .encode(
-            rgb.as_raw(),
-            rgb.width(),
-            rgb.height(),
-            image::ExtendedColorType::Rgb8,
-        )
-        .map_err(|e| format!("Failed to encode image to JPEG: {}", e))?;
-    let b64 = STANDARD.encode(&buffer);
-    Ok(format!("data:image/jpeg;base64,{}", b64))
 }
 
 #[tauri::command]
@@ -632,31 +617,6 @@ pub fn save_and_copy_screenshot(
     }
 
     Ok(saved_path_str)
-}
-
-fn encode_requested_image(source: &[u8], path: &str, app: &tauri::AppHandle) -> Result<Vec<u8>, String> {
-    let is_jpeg = std::path::Path::new(path)
-        .extension().and_then(|e| e.to_str())
-        .map(|e| matches!(e.to_ascii_lowercase().as_str(), "jpg" | "jpeg"))
-        .unwrap_or(false);
-    if !is_jpeg { return Ok(source.to_vec()); }
-    let quality = crate::config::load_config(app.clone()).map(|c| c.jpg_quality).unwrap_or(90).clamp(1, 100);
-    let rgb = image::load_from_memory(source).map_err(|e| format!("無法轉換 JPG：{e}"))?.to_rgb8();
-    let mut output = Vec::new();
-    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality as u8);
-    encoder.encode(rgb.as_raw(), rgb.width(), rgb.height(), image::ExtendedColorType::Rgb8)
-        .map_err(|e| format!("JPG 編碼失敗：{e}"))?;
-    Ok(output)
-}
-
-fn decode_data_url(data: &str) -> Result<Vec<u8>, String> {
-    let payload = data
-        .strip_prefix("data:")
-        .and_then(|value| value.split_once(',').map(|(_, payload)| payload))
-        .unwrap_or(data);
-    STANDARD
-        .decode(payload)
-        .map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 #[derive(serde::Serialize)]

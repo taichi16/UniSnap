@@ -1,6 +1,7 @@
 mod capture;
 mod capture_types;
 mod config;
+mod image_data;
 mod record;
 mod record_types;
 
