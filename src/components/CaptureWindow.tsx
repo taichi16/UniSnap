@@ -26,6 +26,7 @@ import ScrollCaptureControls from "./ScrollCaptureControls";
 import StitchingOverlay from "./StitchingOverlay";
 import ToastMessage from "./ToastMessage";
 import ToolOptionsPopover from "./ToolOptionsPopover";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import {
 } from "lucide-react";
 
@@ -35,8 +36,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [editorImageSize, setEditorImageSize] = useState<{ width: number; height: number } | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const [toolbarWidth, setToolbarWidth] = useState(700);
-  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
 
   // Canvas Refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -214,31 +213,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // before its query parameters have been parsed.
   const isMainEditor = mode === "edit-main" || label.startsWith("main_editor_");
   const isScrollableEditor = isMainEditor || isStitchedResult;
-
-  // Keep toolbar placement responsive when the window, display scale, or
-  // active tool changes the rendered toolbar width.
-  useEffect(() => {
-    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener("resize", updateViewport);
-
-    const toolbar = toolbarRef.current;
-    if (!toolbar) {
-      return () => window.removeEventListener("resize", updateViewport);
-    }
-
-    const updateToolbarWidth = () => {
-      const width = toolbar.getBoundingClientRect().width;
-      if (width > 0) setToolbarWidth(Math.ceil(width));
-    };
-    updateToolbarWidth();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateToolbarWidth) : null;
-    observer?.observe(toolbar);
-
-    return () => {
-      window.removeEventListener("resize", updateViewport);
-      observer?.disconnect();
-    };
-  }, [isScrollableEditor, Boolean(cropRect), activeTool, showColorPalette]);
+  const { toolbarWidth, viewport } = useResponsiveLayout(toolbarRef, [isScrollableEditor, Boolean(cropRect), activeTool, showColorPalette]);
 
   const closeEditor = async () => {
     if (isMainEditor) {
