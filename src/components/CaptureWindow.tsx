@@ -55,6 +55,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [imageLoaded, setImageLoaded] = useState(false);
   const [editorImageSize, setEditorImageSize] = useState<{ width: number; height: number } | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [toolbarWidth, setToolbarWidth] = useState(700);
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
 
   // Canvas Refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -232,6 +235,32 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // before its query parameters have been parsed.
   const isMainEditor = mode === "edit-main" || label.startsWith("main_editor_");
   const isScrollableEditor = isMainEditor || isStitchedResult;
+
+  // Keep toolbar placement responsive when the window, display scale, or
+  // active tool changes the rendered toolbar width.
+  useEffect(() => {
+    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", updateViewport);
+
+    const toolbar = toolbarRef.current;
+    if (!toolbar) {
+      return () => window.removeEventListener("resize", updateViewport);
+    }
+
+    const updateToolbarWidth = () => {
+      const width = toolbar.getBoundingClientRect().width;
+      if (width > 0) setToolbarWidth(Math.ceil(width));
+    };
+    updateToolbarWidth();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateToolbarWidth) : null;
+    observer?.observe(toolbar);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      observer?.disconnect();
+    };
+  }, [isScrollableEditor, Boolean(cropRect), activeTool, showColorPalette]);
+
   const closeEditor = async () => {
     if (isMainEditor) {
       const current = getCurrentWindow();
@@ -1266,15 +1295,15 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     const displayRect = { x: cropRect.x * sx, y: cropRect.y * sy, w: cropRect.w * sx, h: cropRect.h * sy };
 
     // Check if selection covers most of the screen (fullscreen recording mode)
-    const isNearFullScreen = displayRect.w > window.innerWidth * 0.9 && displayRect.h > window.innerHeight * 0.8;
+    const isNearFullScreen = displayRect.w > viewport.width * 0.9 && displayRect.h > viewport.height * 0.8;
     if (isNearFullScreen) {
       // Keep it at the top for near-fullscreen selections. The bottom edge can
       // be covered by the taskbar/dock or fall outside the capture window.
       return {
         position: "fixed",
         top: 56,
-        left: "50%",
-        transform: "translateX(-50%)",
+        left: Math.max(10, Math.min(viewport.width - toolbarWidth - 10, (viewport.width - toolbarWidth) / 2)),
+        transform: "none",
         zIndex: 100000,
         pointerEvents: "auto",
       };
@@ -1282,13 +1311,15 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
     // Normal mode: position below or above selection box
     let top = displayRect.y + displayRect.h + 10;
-    if (top + 50 > window.innerHeight) {
+    if (top + 50 > viewport.height) {
       top = displayRect.y - 52;
     }
     top = Math.max(10, top);
 
-    let left = displayRect.x + (displayRect.w - 480) / 2;
-    left = Math.max(10, Math.min(window.innerWidth - 500, left));
+    // Clamp using the rendered toolbar width, not the old 480/500px estimate.
+    // This keeps the right-side controls inside the capture window near edges.
+    let left = displayRect.x + (displayRect.w - toolbarWidth) / 2;
+    left = Math.max(10, Math.min(viewport.width - toolbarWidth - 10, left));
 
     return { top, left };
   };
@@ -1499,7 +1530,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* Floating Editing Toolbar */}
       {(cropRect || isMainEditor) && !isRecordMode && (
-        <div className="toolbar-floating" style={getToolbarStyle()} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
+        <div ref={toolbarRef} className="toolbar-floating" style={getToolbarStyle()} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
           <>
               <button
                 className={`toolbar-btn ${activeTool === "select" ? "active" : ""}`}

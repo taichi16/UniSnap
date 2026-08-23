@@ -359,12 +359,16 @@ input:checked + .slider:before {
   position: absolute;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
   gap: 6px;
   background: rgba(20, 20, 25, 0.85);
   backdrop-filter: blur(20px);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 6px;
+  max-width: calc(100vw - 20px);
+  overflow-x: auto;
+  overflow-y: visible;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   z-index: 9999;
 }
