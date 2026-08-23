@@ -4,7 +4,6 @@ import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
-import Tesseract from "tesseract.js";
 import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
@@ -35,6 +34,7 @@ import { useCaptureWindowLifecycle } from "../hooks/useCaptureWindowLifecycle";
 import { useScrollCaptureEvents } from "../hooks/useScrollCaptureEvents";
 import { useRecordingStart } from "../hooks/useRecordingStart";
 import { useEditorWindowActions } from "../hooks/useEditorWindowActions";
+import { useOcr } from "../hooks/useOcr";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -89,9 +89,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [draggingTextIndex, setDraggingTextIndex] = useState<number | null>(null);
   const [textDragOffset, setTextDragOffset] = useState<Point>({ x: 0, y: 0 });
 
-  // OCR modal State
-  const [ocrText, setOcrText] = useState<string | null>(null);
-  const [ocrLoading, setOcrLoading] = useState(false);
   const [showExpandDialog, setShowExpandDialog] = useState(false);
   const [expandValues, setExpandValues] = useState({ top: "0", right: "0", bottom: "0", left: "0" });
 
@@ -586,25 +583,10 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     }
   };
 
-  const handleOCR = async () => {
-    const base64 = getCroppedCanvasBase64();
-    if (!base64) return;
-
-    setOcrLoading(true);
-    showToast("進行文字辨識中...");
-    
-    try {
-      const result = await Tesseract.recognize(base64, "chi_tra+eng");
-      setOcrText(result.data.text || "未辨識到任何文字。");
-      await writeText(result.data.text || "");
-      showToast("文字辨識完成，已複製到剪貼簿");
-    } catch (err) {
-      console.error("OCR error:", err);
-      showToast("文字辨識失敗");
-    } finally {
-      setOcrLoading(false);
-    }
-  };
+  const { ocrText, setOcrText, ocrLoading, handleOCR } = useOcr(
+    getCroppedCanvasBase64,
+    showToast,
+  );
 
 
 
