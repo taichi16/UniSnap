@@ -31,3 +31,20 @@ export function createShapeForTool(tool: Tool, point: Point, options: ShapeFacto
       return null;
   }
 }
+
+export function createTextShape(
+  input: { x: number; y: number; text: string },
+  color: string,
+  size: number,
+  fontFamily: string,
+): Shape {
+  return {
+    type: "text",
+    x: input.x,
+    y: input.y,
+    text: input.text,
+    color,
+    size,
+    fontFamily,
+  };
+}

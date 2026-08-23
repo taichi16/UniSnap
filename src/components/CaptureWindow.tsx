@@ -12,7 +12,7 @@ import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextSha
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
-import { createShapeForTool } from "../editor/shapeFactory";
+import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
 import { rgbToHex } from "../editor/color";
 import { parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
@@ -653,15 +653,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     if (textInput && textInput.text.trim()) {
       setShapes([
         ...shapes,
-        {
-          type: "text",
-          x: textInput.x,
-          y: textInput.y,
-          text: textInput.text,
-          color: strokeColor,
-          size: strokeWidth * 6,
-          fontFamily: textFont,
-        },
+        createTextShape(textInput, strokeColor, strokeWidth * 6, textFont),
       ]);
     }
     setTextInput(null);
