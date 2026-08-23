@@ -1,5 +1,4 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use std::io::Cursor;
 #[cfg(not(target_os = "windows"))]
 use enigo::{Axis, Coordinate, Enigo, Mouse, Settings};
 use image::RgbaImage;
@@ -7,6 +6,7 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
 use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
+use crate::editor_image::load_editor_image;
 use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 
 /// Lightweight monitor listing using Tauri's own API.
@@ -269,17 +269,8 @@ pub fn open_image_editor(
     path: String,
 ) -> Result<String, String> {
     eprintln!("[capture] open_image_editor requested path={}", path);
-    let file_path = std::path::Path::new(&path);
-    if !file_path.is_file() {
-        return Err(format!("找不到圖片檔案：{}", file_path.display()));
-    }
-    let source = std::fs::read(file_path).map_err(|e| format!("無法讀取圖片 {}：{e}", file_path.display()))?;
-    let image = image::load_from_memory(&source).map_err(|e| format!("無法開啟圖片：{e}"))?;
-    let width = image.width();
-    let height = image.height();
-    let mut encoded = Cursor::new(Vec::new());
-    image.write_to(&mut encoded, image::ImageFormat::Png).map_err(|e| format!("無法準備圖片編輯資料：{e}"))?;
-    create_image_editor_window(app, state, format!("data:image/png;base64,{}", STANDARD.encode(encoded.into_inner())), width, height)
+    let image = load_editor_image(std::path::Path::new(&path))?;
+    create_image_editor_window(app, state, image.data_url, image.width, image.height)
 }
 
 /// Opens image data supplied by the native file input, avoiding path and
@@ -316,14 +307,11 @@ pub fn open_image_in_main_editor(
                 let Some(file) = selected else { return Ok(()); };
                 let path = file.into_path().map_err(|e| format!("無法取得圖片路徑：{e}"))?;
                 eprintln!("[capture] main_editor selected path={}", path.display());
-                let source = std::fs::read(&path).map_err(|e| format!("無法讀取圖片：{e}"))?;
-                let image = image::load_from_memory(&source).map_err(|e| format!("無法開啟圖片：{e}"))?;
-                let width = image.width();
-                let height = image.height();
-                let mut encoded = Cursor::new(Vec::new());
-                image.write_to(&mut encoded, image::ImageFormat::Png).map_err(|e| format!("無法準備圖片編輯資料：{e}"))?;
+                let image = load_editor_image(&path)?;
+                let width = image.width;
+                let height = image.height;
                 let label = format!("main_editor_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0));
-                app_handle.state::<crate::PinnedImageState>().0.lock().unwrap().insert(label.clone(), format!("data:image/png;base64,{}", STANDARD.encode(encoded.into_inner())));
+                app_handle.state::<crate::PinnedImageState>().0.lock().unwrap().insert(label.clone(), image.data_url);
                 let main = app_handle.get_webview_window("main").ok_or_else(|| "找不到主視窗".to_string())?;
                 let monitor = main.current_monitor().map_err(|e| format!("無法取得目前螢幕：{e}"))?.or_else(|| app_handle.primary_monitor().ok().flatten()).ok_or_else(|| "找不到可用螢幕".to_string())?;
                 let scale = monitor.scale_factor();
