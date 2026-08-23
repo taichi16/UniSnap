@@ -9,6 +9,7 @@ mod record;
 mod recording_crop;
 mod recording_output;
 mod record_types;
+mod scroll_matching;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
