@@ -4,7 +4,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
-import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
+import { createShapeForTool } from "../editor/shapeFactory";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
@@ -37,6 +37,7 @@ import { useConfirmScreenshot } from "../hooks/useConfirmScreenshot";
 import { useMosaicRenderer } from "../hooks/useMosaicRenderer";
 import { useCanvasExpansion } from "../hooks/useCanvasExpansion";
 import { useScrollCapture } from "../hooks/useScrollCapture";
+import { useAnnotationActions } from "../hooks/useAnnotationActions";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -328,21 +329,15 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   };
 
 
-  const handleTextInputBlur = () => {
-    if (textInput && textInput.text.trim()) {
-      setShapes([
-        ...shapes,
-        createTextShape(textInput, strokeColor, strokeWidth * 6, textFont),
-      ]);
-    }
-    setTextInput(null);
-  };
-
-  const handleUndo = () => {
-    if (shapes.length > 0) {
-      setShapes(shapes.slice(0, -1));
-    }
-  };
+  const { handleTextInputBlur, handleUndo } = useAnnotationActions(
+    textInput,
+    shapes,
+    strokeColor,
+    strokeWidth,
+    textFont,
+    setShapes,
+    setTextInput,
+  );
 
 
   // Actions
