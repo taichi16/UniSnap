@@ -1,9 +1,8 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef } from "react";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { getCanvasOverlayPosition, getEditorCanvasSize } from "../editor/geometry";
+import { getCanvasOverlayPosition } from "../editor/geometry";
 import { cropCanvasToBase64 } from "../editor/imageExport";
-import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
@@ -37,6 +36,7 @@ import { useCanvasExpansion } from "../hooks/useCanvasExpansion";
 import { useScrollCapture } from "../hooks/useScrollCapture";
 import { useAnnotationActions } from "../hooks/useAnnotationActions";
 import { useEditorPointerHandlers } from "../hooks/useEditorPointerHandlers";
+import { useEditorLayout } from "../hooks/useEditorLayout";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -255,26 +255,13 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     closeEditor,
   });
 
-  const getToolbarStyle = (): React.CSSProperties => {
-    const canvas = canvasRef.current;
-    const bounds = canvas?.getBoundingClientRect();
-    return calculateToolbarStyle({
-      isScrollableEditor,
-      cropRect,
-      canvasWidth: canvas?.width ?? window.innerWidth,
-      canvasHeight: canvas?.height ?? window.innerHeight,
-      displayWidth: bounds?.width ?? window.innerWidth,
-      displayHeight: bounds?.height ?? window.innerHeight,
-      toolbarWidth,
-      viewport,
-    });
-  };
-
-  const editorCanvasSize = getEditorCanvasSize({
-    scrollable: isScrollableEditor,
-    stitchedResult: isStitchedResult,
-    canvas: canvasRef.current,
-    imageSize: editorImageSize,
+  const { toolbarStyle, canvasSize: editorCanvasSize } = useEditorLayout({
+    canvasRef,
+    isScrollableEditor,
+    isStitchedResult,
+    cropRect,
+    editorImageSize,
+    toolbarWidth,
     viewport,
   });
 
@@ -397,7 +384,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* Floating Editing Toolbar */}
       {(cropRect || isMainEditor) && !isRecordMode && (
-        <div ref={toolbarRef} className="toolbar-floating" style={getToolbarStyle()} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
+        <div ref={toolbarRef} className="toolbar-floating" style={toolbarStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
           <>
               <EditorToolButtons
                 activeTool={activeTool}
