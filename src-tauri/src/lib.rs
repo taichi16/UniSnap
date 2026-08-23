@@ -6,6 +6,7 @@ mod editor_image;
 mod frame_source;
 mod image_data;
 mod record;
+mod recording_crop;
 mod record_types;
 
 use std::collections::HashMap;
