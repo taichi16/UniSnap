@@ -4,7 +4,7 @@ import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
-import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -35,6 +35,7 @@ import { useScrollCaptureEvents } from "../hooks/useScrollCaptureEvents";
 import { useRecordingStart } from "../hooks/useRecordingStart";
 import { useEditorWindowActions } from "../hooks/useEditorWindowActions";
 import { useOcr } from "../hooks/useOcr";
+import { useCanvasCoordinates } from "../hooks/useCanvasCoordinates";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -265,15 +266,8 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   useCanvasRedraw(canvasRef, imageRef, imageLoaded, cropRect, shapes, currentShape, drawMosaic);
   useColorPicker(imageRef, imageLoaded, cropRect, mousePos, setHoverColor);
 
-  // The editor window may fit a large image inside the available screen. Keep
-  // pointer coordinates in the image's native pixel space so crop and
-  // annotations remain accurate after that visual scaling.
-  const toCanvasPoint = (clientX: number, clientY: number): Point => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: clientX, y: clientY };
-    const rect = canvas.getBoundingClientRect();
-    return clientToCanvasPoint(clientX, clientY, rect, canvas.width, canvas.height);
-  };
+  // Keep pointer coordinates in the image's native pixel space after visual scaling.
+  const toCanvasPoint = useCanvasCoordinates(canvasRef);
 
   // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
