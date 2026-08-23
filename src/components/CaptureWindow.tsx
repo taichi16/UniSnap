@@ -7,7 +7,6 @@ import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOve
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
-import { expandSelectedCanvas, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
 import { getCaptureMonitorIndex } from "../editor/windowIdentity";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
@@ -39,6 +38,7 @@ import { usePinScreenshot } from "../hooks/usePinScreenshot";
 import { useSaveScreenshot } from "../hooks/useSaveScreenshot";
 import { useConfirmScreenshot } from "../hooks/useConfirmScreenshot";
 import { useMosaicRenderer } from "../hooks/useMosaicRenderer";
+import { useCanvasExpansion } from "../hooks/useCanvasExpansion";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -93,11 +93,20 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [draggingTextIndex, setDraggingTextIndex] = useState<number | null>(null);
   const [textDragOffset, setTextDragOffset] = useState<Point>({ x: 0, y: 0 });
 
-  const [showExpandDialog, setShowExpandDialog] = useState(false);
-  const [expandValues, setExpandValues] = useState({ top: "0", right: "0", bottom: "0", left: "0" });
-
   // Toast status
   const { toastMessage: toastMsg, showToast } = useToastMessage();
+
+  const { showExpandDialog, setShowExpandDialog, expandValues, setExpandValues, handleExpandCanvas, applyExpandCanvas } = useCanvasExpansion(
+    canvasRef,
+    imageRef,
+    cropRect,
+    setCropRect,
+    setShapes,
+    setScreenshotData,
+    setImageLoaded,
+    setEditorImageSize,
+    showToast,
+  );
 
   // Scrolling Capture State
   const [isScrollingMode, setIsScrollingMode] = useState(false);
@@ -414,53 +423,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     }
   };
 
-  const handleExpandCanvas = () => {
-    if (!canvasRef.current || !imageRef.current) {
-      showToast("圖片尚未載入完成，無法擴增畫布");
-      return;
-    }
-    setExpandValues({ top: "0", right: "0", bottom: "0", left: "0" });
-    setShowExpandDialog(true);
-  };
-
-  const applyExpandCanvas = () => {
-    if (!canvasRef.current || !imageRef.current) return;
-    const { top, right, bottom, left } = parseExpansionValues(expandValues);
-    if (top + right + bottom + left === 0) {
-      setShowExpandDialog(false);
-      showToast("未輸入擴增像素");
-      return;
-    }
-
-    const source = canvasRef.current;
-    // Expansion applies to the current selection. When the editor has not
-    // created a selection yet, fall back to the whole image for compatibility
-    // with opening an image directly in the editor.
-    const selection = cropRect ?? { x: 0, y: 0, w: source.width, h: source.height };
-    const expanded = expandSelectedCanvas(source, selection, { top, right, bottom, left });
-    if (!expanded) {
-      showToast("目前選取區域無法擴增");
-      return;
-    }
-
-    const data = expanded.dataUrl;
-    const img = new Image();
-    img.onload = () => {
-      imageRef.current = img;
-      setScreenshotData(data);
-      setImageLoaded(true);
-      setShapes((items) => translateShapes(items, expanded.selectionX, expanded.selectionY, left, top));
-      if (canvasRef.current) {
-        canvasRef.current.width = expanded.width;
-        canvasRef.current.height = expanded.height;
-      }
-      setEditorImageSize({ width: expanded.width, height: expanded.height });
-      setCropRect({ x: 0, y: 0, w: expanded.width, h: expanded.height });
-      showToast(`畫布已擴增至 ${expanded.width} × ${expanded.height}`);
-    };
-    img.src = data;
-    setShowExpandDialog(false);
-  };
 
   // Actions
   const getCroppedCanvasBase64 = () => {
