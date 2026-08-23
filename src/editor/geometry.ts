@@ -68,6 +68,13 @@ export function isPointInRect(point: Point, rect: EditorRect): boolean {
     && point.y <= rect.y + rect.h;
 }
 
+export function clampPointToRect(point: Point, rect: EditorRect): Point {
+  return {
+    x: Math.max(rect.x, Math.min(rect.x + rect.w, point.x)),
+    y: Math.max(rect.y, Math.min(rect.y + rect.h, point.y)),
+  };
+}
+
 /** Finds the topmost text annotation under a pointer. */
 export function findTextShapeIndex(shapes: Shape[], point: Point): number | undefined {
   return [...shapes.keys()].reverse().find((index) => {

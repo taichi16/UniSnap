@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -624,10 +624,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     // Annotation drawing
     if (currentShape && cropRect) {
       // Lock coordinates inside cropRect
-      const lockedPos = {
-        x: Math.max(cropRect.x, Math.min(cropRect.x + cropRect.w, clientPos.x)),
-        y: Math.max(cropRect.y, Math.min(cropRect.y + cropRect.h, clientPos.y)),
-      };
+      const lockedPos = clampPointToRect(clientPos, cropRect);
 
       setCurrentShape(updateShapeEndpoint(currentShape, lockedPos));
     }
