@@ -95,3 +95,21 @@ export function clientToCanvasPoint(
     y: Math.max(0, Math.min(canvasHeight, (clientY - bounds.top) * canvasHeight / Math.max(1, bounds.height))),
   };
 }
+
+export function getCanvasOverlayPosition(
+  point: Point,
+  canvas: { offsetTop: number; offsetLeft: number; width: number; height: number },
+  canvasBounds: { top: number; left: number; width: number; height: number },
+  containerBounds: { top: number; left: number },
+  scrollable: boolean,
+): Point {
+  const sx = canvasBounds.width / Math.max(1, canvas.width);
+  const sy = canvasBounds.height / Math.max(1, canvas.height);
+  if (scrollable) {
+    return { x: canvas.offsetLeft + point.x * sx, y: canvas.offsetTop + point.y * sy };
+  }
+  return {
+    x: canvasBounds.left - containerBounds.left + point.x * sx,
+    y: canvasBounds.top - containerBounds.top + point.y * sy,
+  };
+}

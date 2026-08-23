@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -996,27 +996,17 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
               const canvas = canvasRef.current;
               const container = canvas?.parentElement;
               if (!canvas || !container) return textInput.y;
-              if (isScrollableEditor) {
-                const sy = canvas.getBoundingClientRect().height / Math.max(1, canvas.height);
-                return canvas.offsetTop + textInput.y * sy;
-              }
               const canvasRect = canvas.getBoundingClientRect();
               const containerRect = container.getBoundingClientRect();
-              const sy = canvasRect.height / Math.max(1, canvas.height);
-              return canvasRect.top - containerRect.top + textInput.y * sy;
+              return getCanvasOverlayPosition(textInput, canvas, canvasRect, containerRect, isScrollableEditor).y;
             })(),
             left: (() => {
               const canvas = canvasRef.current;
               const container = canvas?.parentElement;
               if (!canvas || !container) return textInput.x;
-              if (isScrollableEditor) {
-                const sx = canvas.getBoundingClientRect().width / Math.max(1, canvas.width);
-                return canvas.offsetLeft + textInput.x * sx;
-              }
               const canvasRect = canvas.getBoundingClientRect();
               const containerRect = container.getBoundingClientRect();
-              const sx = canvasRect.width / Math.max(1, canvas.width);
-              return canvasRect.left - containerRect.left + textInput.x * sx;
+              return getCanvasOverlayPosition(textInput, canvas, canvasRect, containerRect, isScrollableEditor).x;
             })(),
             color: strokeColor,
             fontSize: `${strokeWidth * 6}px`,
