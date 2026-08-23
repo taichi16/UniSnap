@@ -14,6 +14,20 @@ export function getCanvasPixelSize(canvas: HTMLCanvasElement | null, fallback: {
   };
 }
 
+export function getEditorCanvasSize(options: {
+  scrollable: boolean;
+  stitchedResult: boolean;
+  canvas: HTMLCanvasElement | null;
+  imageSize: { width: number; height: number } | null;
+  viewport: { width: number; height: number };
+}): { width: number; height: number } {
+  if (!options.scrollable) return options.viewport;
+  if (options.stitchedResult && options.canvas) {
+    return { width: options.canvas.width, height: options.canvas.height };
+  }
+  return options.imageSize ?? options.viewport;
+}
+
 export function createSelectionRect(start: Point, current: Point): EditorRect {
   return {
     x: Math.min(current.x, start.x),

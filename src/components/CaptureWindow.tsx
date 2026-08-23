@@ -8,7 +8,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import Tesseract from "tesseract.js";
 import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
-import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
+import { clampPointToRect, clientToCanvasPoint, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
@@ -890,6 +890,14 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     });
   };
 
+  const editorCanvasSize = getEditorCanvasSize({
+    scrollable: isScrollableEditor,
+    stitchedResult: isStitchedResult,
+    canvas: canvasRef.current,
+    imageSize: editorImageSize,
+    viewport,
+  });
+
   return (
     <div
       className={`capture-container${isScrollableEditor ? " editor-main" : ""}`}
@@ -899,10 +907,10 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     >
       <canvas
         ref={canvasRef}
-        width={isScrollableEditor ? (isStitchedResult ? (canvasRef.current?.width ?? window.innerWidth) : (editorImageSize?.width ?? window.innerWidth)) : window.innerWidth}
-        height={isScrollableEditor ? (isStitchedResult ? (canvasRef.current?.height ?? window.innerHeight) : (editorImageSize?.height ?? window.innerHeight)) : window.innerHeight}
+        width={editorCanvasSize.width}
+        height={editorCanvasSize.height}
         className="capture-canvas"
-        style={isScrollableEditor ? { width: `${isStitchedResult ? (canvasRef.current?.width ?? window.innerWidth) : (editorImageSize?.width ?? window.innerWidth)}px`, height: `${isStitchedResult ? (canvasRef.current?.height ?? window.innerHeight) : (editorImageSize?.height ?? window.innerHeight)}px` } : undefined}
+        style={isScrollableEditor ? { width: `${editorCanvasSize.width}px`, height: `${editorCanvasSize.height}px` } : undefined}
       />
 
       <ScrollCaptureControls
