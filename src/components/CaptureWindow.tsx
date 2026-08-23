@@ -1055,14 +1055,44 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     }
 
     const source = canvasRef.current;
+    // Expansion applies to the current selection. When the editor has not
+    // created a selection yet, fall back to the whole image for compatibility
+    // with opening an image directly in the editor.
+    const selection = cropRect ?? { x: 0, y: 0, w: source.width, h: source.height };
+    const selectionX = Math.max(0, Math.round(selection.x));
+    const selectionY = Math.max(0, Math.round(selection.y));
+    const selectionWidth = Math.min(source.width - selectionX, Math.max(1, Math.round(selection.w)));
+    const selectionHeight = Math.min(source.height - selectionY, Math.max(1, Math.round(selection.h)));
+    if (selectionWidth <= 0 || selectionHeight <= 0) {
+      showToast("目前選取區域無法擴增");
+      return;
+    }
+
+    const selected = document.createElement("canvas");
+    selected.width = selectionWidth;
+    selected.height = selectionHeight;
+    const selectedCtx = selected.getContext("2d");
+    if (!selectedCtx) return;
+    selectedCtx.drawImage(
+      source,
+      selectionX,
+      selectionY,
+      selectionWidth,
+      selectionHeight,
+      0,
+      0,
+      selectionWidth,
+      selectionHeight,
+    );
+
     const expanded = document.createElement("canvas");
-    expanded.width = source.width + left + right;
-    expanded.height = source.height + top + bottom;
+    expanded.width = selectionWidth + left + right;
+    expanded.height = selectionHeight + top + bottom;
     const ctx = expanded.getContext("2d");
     if (!ctx) return;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, expanded.width, expanded.height);
-    ctx.drawImage(source, left, top);
+    ctx.drawImage(selected, left, top);
     const data = expanded.toDataURL("image/png");
     const img = new Image();
     img.onload = () => {
@@ -1070,9 +1100,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       setScreenshotData(data);
       setImageLoaded(true);
       setShapes((items) => items.map((shape) => {
-        if ("x" in shape && "y" in shape) return { ...shape, x: shape.x + left, y: shape.y + top } as Shape;
-        if ("start" in shape && "end" in shape) return { ...shape, start: { x: shape.start.x + left, y: shape.start.y + top }, end: { x: shape.end.x + left, y: shape.end.y + top } } as Shape;
-        if ("points" in shape) return { ...shape, points: shape.points.map((p) => ({ x: p.x + left, y: p.y + top })) } as Shape;
+        if ("x" in shape && "y" in shape) return { ...shape, x: shape.x - selectionX + left, y: shape.y - selectionY + top } as Shape;
+        if ("start" in shape && "end" in shape) return { ...shape, start: { x: shape.start.x - selectionX + left, y: shape.start.y - selectionY + top }, end: { x: shape.end.x - selectionX + left, y: shape.end.y - selectionY + top } } as Shape;
+        if ("points" in shape) return { ...shape, points: shape.points.map((p) => ({ x: p.x - selectionX + left, y: p.y - selectionY + top })) } as Shape;
         return shape;
       }));
       if (canvasRef.current) {
