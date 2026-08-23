@@ -16,6 +16,7 @@ import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
 import { rgbToHex } from "../editor/color";
 import { getSelectionBounds, parseExpansionValues, translateShapes } from "../editor/canvasExpansion";
 import { updateShapeEndpoint } from "../editor/shapeTransforms";
+import { getCaptureMonitorIndex } from "../editor/windowIdentity";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -119,8 +120,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     setIsStitching(true);
 
     const win = getCurrentWindow();
-    const match = label.match(/capture_(\d+)_/);
-    const monitorIndex = match ? parseInt(match[1]) : 0;
+    const monitorIndex = getCaptureMonitorIndex(label);
 
     // Close other capture windows on other monitors immediately so only one window remains
     try {
@@ -237,8 +237,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   const startRecordingControl = async () => {
     if (!cropRect || isStartingRecording) return;
-    const match = label.match(/capture_(\d+)_/);
-    const monitorIndex = match ? parseInt(match[1], 10) : 0;
+    const monitorIndex = getCaptureMonitorIndex(label);
     const captureWindow = getCurrentWindow();
     try {
       setIsStartingRecording(true);
