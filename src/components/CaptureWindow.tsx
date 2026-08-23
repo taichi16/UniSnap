@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, getAllWindows, LogicalSize } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -33,6 +32,7 @@ import { useCanvasRedraw } from "../hooks/useCanvasRedraw";
 import { useEditorKeyboardShortcuts } from "../hooks/useEditorKeyboardShortcuts";
 import { usePinnedImage } from "../hooks/usePinnedImage";
 import { useCaptureWindowLifecycle } from "../hooks/useCaptureWindowLifecycle";
+import { useScrollCaptureEvents } from "../hooks/useScrollCaptureEvents";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -271,28 +271,13 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   // The capture window is hidden during scrolling, so Escape is routed
   // through the main window's global shortcut handler.
-  useEffect(() => {
-    if (mode === "record") return;
-    let unlisten: (() => void) | undefined;
-    listen("global-escape", async () => {
-      if (isScrollingModeRef.current) {
-        scrollCancelRequestedRef.current = true;
-        await invoke("cancel_scroll_capture");
-      } else {
-        await cancelScrollFlow();
-      }
-    }).then((cleanup) => { unlisten = cleanup; });
-    return () => { unlisten?.(); };
-  }, [mode]);
-
-  useEffect(() => {
-    if (mode === "record") return;
-    let unlisten: (() => void) | undefined;
-    listen<{ strategy: string; message: string }>("scroll-capture-strategy", (event) => {
-      if (event.payload?.message) showToast(event.payload.message);
-    }).then((cleanup) => { unlisten = cleanup; });
-    return () => { unlisten?.(); };
-  }, [mode]);
+  useScrollCaptureEvents(
+    mode,
+    isScrollingModeRef,
+    scrollCancelRequestedRef,
+    cancelScrollFlow,
+    showToast,
+  );
 
   useCaptureWindowLifecycle(cropRect);
 
