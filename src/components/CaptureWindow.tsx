@@ -4,7 +4,6 @@ import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { clampPointToRect, createSelectionRect, findTextShapeIndex, getCanvasOverlayPosition, getCanvasPixelSize, getEditorCanvasSize, getHandleAt, isPointInRect, moveEditorRect, resizeEditorRect } from "../editor/geometry";
-import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { getToolbarStyle as calculateToolbarStyle } from "../editor/toolbarStyle";
 import { createShapeForTool, createTextShape } from "../editor/shapeFactory";
@@ -39,6 +38,7 @@ import { useCopyScreenshot } from "../hooks/useCopyScreenshot";
 import { usePinScreenshot } from "../hooks/usePinScreenshot";
 import { useSaveScreenshot } from "../hooks/useSaveScreenshot";
 import { useConfirmScreenshot } from "../hooks/useConfirmScreenshot";
+import { useMosaicRenderer } from "../hooks/useMosaicRenderer";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -259,12 +259,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // is delivered before React has committed the canvas.
   useEditorSelectionInitialization(isMainEditor, imageLoaded, editorImageSize, cropRect, setCropRect);
 
-  const drawMosaic = (ctx: CanvasRenderingContext2D, rx: number, ry: number, rw: number, rh: number, size: number) => {
-    if (!imageRef.current) return;
-    // Keep the established editor sampling dimensions while moving the pixel
-    // processing implementation out of the window component.
-    drawMosaicPixels(ctx, imageRef.current, rx, ry, rw, rh, size, window.innerWidth, window.innerHeight);
-  };
+  const drawMosaic = useMosaicRenderer(imageRef);
 
   useCanvasRedraw(canvasRef, imageRef, imageLoaded, cropRect, shapes, currentShape, drawMosaic);
   useColorPicker(imageRef, imageLoaded, cropRect, mousePos, setHoverColor);
