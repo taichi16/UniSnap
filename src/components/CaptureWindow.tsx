@@ -11,6 +11,7 @@ import { drawHandles } from "../editor/drawingPrimitives";
 import { drawShape } from "../editor/drawShape";
 import { clientToCanvasPoint, getHandleAt, isPointInRect } from "../editor/geometry";
 import { drawMosaic as drawMosaicPixels } from "../editor/mosaic";
+import { cropCanvasToBase64 } from "../editor/imageExport";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
@@ -822,23 +823,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   // Actions
   const getCroppedCanvasBase64 = () => {
     if (!canvasRef.current || !cropRect) return null;
-    const canvas = canvasRef.current;
-    
-    // Create offscreen canvas for the crop
-    const offscreen = document.createElement("canvas");
-    offscreen.width = cropRect.w;
-    offscreen.height = cropRect.h;
-    const ctx = offscreen.getContext("2d");
-    if (!ctx) return null;
-
-    // Draw the cropped portion from the main canvas
-    ctx.drawImage(
-      canvas,
-      cropRect.x, cropRect.y, cropRect.w, cropRect.h, // Source
-      0, 0, cropRect.w, cropRect.h // Target
-    );
-
-    return offscreen.toDataURL("image/png");
+    return cropCanvasToBase64(canvasRef.current, cropRect);
   };
 
   const handleCopyOnly = async () => {
