@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use xcap::Window;
 
 /// Physical-pixel selection and target window resolved from overlay points.
