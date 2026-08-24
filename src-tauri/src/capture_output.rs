@@ -24,7 +24,7 @@ pub fn save_capture_png(
     );
     let path = std::path::PathBuf::from(&config.save_directory).join(filename);
     let path_str = path.to_string_lossy().into_owned();
-    let _ = crate::capture::save_and_copy_screenshot(
+    let _ = crate::capture_io::save_and_copy_screenshot(
         app,
         base64_image,
         Some(path_str.clone()),
