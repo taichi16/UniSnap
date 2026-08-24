@@ -407,8 +407,6 @@ mod recording_tests {
                         y: 0,
                         width: ((width as f64) / scale).round() as u32,
                         height: ((height as f64) / scale).round() as u32,
-                        canvas_width: width,
-                        canvas_height: height,
                     },
                 },
                 Crop {

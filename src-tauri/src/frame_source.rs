@@ -6,7 +6,6 @@ use xcap::{Frame, Monitor, VideoRecorder};
 /// Owns the active frame producer for video and scrolling captures.
 pub enum FrameSource {
     Receiver(mpsc::Receiver<Frame>),
-    Monitor(Monitor),
     Native {
         recorder: VideoRecorder,
         receiver: mpsc::Receiver<Frame>,
@@ -23,8 +22,6 @@ pub struct CaptureRegion {
     pub y: u32,
     pub width: u32,
     pub height: u32,
-    pub canvas_width: u32,
-    pub canvas_height: u32,
 }
 
 impl FrameSource {
@@ -35,12 +32,6 @@ impl FrameSource {
                     Ok(frame) => Ok(Some(frame)),
                     Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => Ok(None),
                 }
-            }
-            Self::Monitor(monitor) => {
-                let image = monitor
-                    .capture_image()
-                    .map_err(|e| format!("擷取錄影影格失敗：{e}"))?;
-                Ok(Some(Frame::new(image.width(), image.height(), image.into_raw())))
             }
             Self::MonitorRegion { monitor, region } => {
                 let image = monitor
