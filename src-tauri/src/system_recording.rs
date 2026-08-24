@@ -124,7 +124,7 @@ pub fn start_system_recording(
         stop,
         finished: finished_rx,
     });
-    let _ = crate::capture::open_recording_control(
+    let _ = crate::capture_controls::open_recording_control(
         app.clone(),
         monitor_index,
         x as f64,

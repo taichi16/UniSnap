@@ -158,7 +158,7 @@ pub fn start_recording(
         "[record] start_recording ready path={} size={}x{}",
         started.path, started.width, started.height
     );
-    if let Err(error) = crate::capture::open_recording_control(
+    if let Err(error) = crate::capture_controls::open_recording_control(
         app.clone(),
         monitor_index,
         x as f64,

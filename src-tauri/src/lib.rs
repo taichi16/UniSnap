@@ -29,6 +29,8 @@ mod scroll_target_window;
 mod monitor_resolution;
 mod scroll_trigger;
 mod system_recording;
+mod capture_controls;
+mod monitor_capture;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -255,15 +257,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
-            capture::list_monitors,
-            capture::capture_screens,
+            monitor_capture::list_monitors,
+            monitor_capture::capture_screens,
             capture::trigger_screenshot,
             capture::open_image_editor,
             capture::open_image_editor_data,
             capture::open_image_in_main_editor,
-            capture::close_capture_windows,
-            capture::open_recording_control,
-            capture::open_recording_start_control,
+            capture_controls::close_capture_windows,
+            capture_controls::open_recording_control,
+            capture_controls::open_recording_start_control,
             capture::save_and_copy_screenshot,
             capture::copy_screenshot_to_clipboard,
             capture::inspect_saved_file,
