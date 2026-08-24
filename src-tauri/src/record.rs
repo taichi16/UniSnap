@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    mpsc, Arc, Mutex,
+    mpsc, Arc,
 };
 use std::time::{Duration, Instant};
 
@@ -16,7 +16,8 @@ use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
 };
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
-use crate::record_types::{RecordingResult, ScrollConfig};
+pub use crate::record_types::RecordingState;
+use crate::record_types::{RecordingResult, RecordingSession, ScrollConfig};
 use crate::audio_capture::{start_audio_capture, AudioCapture};
 use crate::frame_source::{CaptureRegion, FrameSource};
 use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
@@ -43,13 +44,6 @@ unsafe extern "C" {
         error_buffer: *mut std::ffi::c_char,
         error_buffer_size: usize,
     ) -> bool;
-}
-
-pub struct RecordingState(pub Mutex<Option<RecordingSession>>);
-
-pub struct RecordingSession {
-    stop: Arc<AtomicBool>,
-    finished: mpsc::Receiver<Result<RecordingResult, String>>,
 }
 
 #[cfg(target_os = "macos")]
