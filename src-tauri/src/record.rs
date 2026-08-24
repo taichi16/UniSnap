@@ -25,7 +25,7 @@ use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
 use crate::mp4_config::{default_mp4_config, h264_video_track};
 use openh264::OpenH264API;
-use rusty_aac::{AacEncoder, AacEncoderConfig};
+use crate::recording_audio_writer::write_microphone_track;
 use tauri::AppHandle;
 use xcap::{Frame, Monitor};
 
@@ -507,51 +507,7 @@ fn encode_recording(
         return Err("錄影期間未產生可儲存影格".into());
     }
     if let Some(capture) = audio {
-        drop(capture.stream);
-        let samples = capture
-            .samples
-            .lock()
-            .map_err(|_| "無法讀取麥克風資料".to_string())?
-            .clone();
-        if !samples.is_empty() {
-            let sample_rate = capture.sample_rate;
-            let channels = capture.channels;
-            let mut encoder = AacEncoder::new(AacEncoderConfig {
-                bitrate_bps: 128_000,
-                ..Default::default()
-            });
-            encoder
-                .push_pcm(&samples, channels, sample_rate)
-                .map_err(|e| format!("AAC 編碼失敗：{e}"))?;
-            encoder.finish();
-            let mut audio_sample_index = 0u64;
-            while let Ok(packet) = encoder.next_packet() {
-                let bytes = Bytes::from(packet.data);
-                writer
-                    .write_sample(
-                        2,
-                        &Mp4Sample {
-                            start_time: audio_sample_index,
-                            duration: ((packet.duration as u64 * 1_000) / sample_rate as u64).max(1)
-                                as u32,
-                            rendering_offset: 0,
-                            is_sync: true,
-                            bytes,
-                        },
-                    )
-                    .map_err(|e| format!("寫入 MP4 麥克風音訊失敗：{e}"))?;
-                audio_sample_index +=
-                    ((packet.duration as u64 * 1_000) / sample_rate as u64).max(1);
-            }
-            eprintln!(
-                "[record] microphone samples={} rate={} channels={}",
-                samples.len(),
-                sample_rate,
-                channels
-            );
-        } else {
-            eprintln!("[record] microphone produced no samples; video saved without usable audio");
-        }
+        write_microphone_track(&mut writer, capture)?;
     }
     writer
         .write_end()
