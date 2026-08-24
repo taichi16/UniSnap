@@ -13,6 +13,7 @@ mod scroll_matching;
 mod scroll_input;
 mod scroll_masks;
 mod scroll_target;
+mod scroll_target_window;
 
 use std::collections::HashMap;
 use std::sync::Mutex;

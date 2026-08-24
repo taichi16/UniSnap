@@ -10,6 +10,7 @@ use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_a
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
 use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
+use crate::scroll_target_window::resolve_scroll_target;
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -693,73 +694,15 @@ pub fn auto_scroll_capture_window(
 ) -> Result<String, String> {
     SCROLL_CANCELLED.store(false, Ordering::SeqCst);
 
-    let tauri_monitors = app
-        .available_monitors()
-        .map_err(|e| format!("Failed to list Tauri monitors: {}", e))?;
-    let tauri_monitor = tauri_monitors
-        .get(monitor_index)
-        .or_else(|| tauri_monitors.first())
-        .ok_or_else(|| "No monitor found".to_string())?;
-    let monitor_x = tauri_monitor.position().x;
-    let monitor_y = tauri_monitor.position().y;
-    let scale_factor = tauri_monitor.scale_factor();
-
-    let monitors =
-        xcap::Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let mon = monitors
-        .iter()
-        .find(|monitor| monitor.x().ok() == Some(monitor_x) && monitor.y().ok() == Some(monitor_y))
-        .or_else(|| {
-            let name = tauri_monitor.name().cloned().unwrap_or_default();
-            monitors
-                .iter()
-                .find(|monitor| monitor.name().unwrap_or_default() == name)
-        })
-        .or_else(|| monitors.get(monitor_index))
-        .or_else(|| monitors.first())
-        .ok_or_else(|| "No matching xcap monitor found".to_string())?;
-
-    let mon_x = mon.x().map_err(|e| e.to_string())?;
-    let mon_y = mon.y().map_err(|e| e.to_string())?;
-    // The capture overlay reports logical WebView points, while xcap window
-    // images are physical pixels on Retina macOS displays.  Use the monitor
-    // scale for the selected rectangle on every platform (1.0 on standard
-    // DPI displays) so a full-width selection is not cropped to half width.
-    let coordinate_scale = scale_factor;
-    let global_selection_x = mon_x + (selection_x * coordinate_scale).round() as i32;
-    let global_selection_y = mon_y + (selection_y * coordinate_scale).round() as i32;
-    let global_selection_width = (selection_width * coordinate_scale).round().max(1.0) as u32;
-    let global_selection_height = (selection_height * coordinate_scale).round().max(1.0) as u32;
-
-    let windows = xcap::Window::all().map_err(|e| format!("Failed to list windows: {}", e))?;
-
-    // Find top-most window under click coordinates
-    let target_win = windows.into_iter().find(|w| {
-        let title = w.title().unwrap_or_default();
-        let app = w.app_name().unwrap_or_default();
-        if app == "Dock"
-            || app == "Window Server"
-            || title.starts_with("Capture Window")
-            || title.starts_with("tauri-app")
-        {
-            return false;
-        }
-        if let (Ok(wx), Ok(wy), Ok(ww), Ok(wh), Ok(min)) =
-            (w.x(), w.y(), w.width(), w.height(), w.is_minimized())
-        {
-            if min || ww < 200 || wh < 200 {
-                return false;
-            }
-            global_selection_x >= wx
-                && global_selection_x < wx + ww as i32
-                && global_selection_y >= wy
-                && global_selection_y < wy + wh as i32
-        } else {
-            false
-        }
-    });
-
-    let win = target_win.ok_or_else(|| "未找到對應的應用程式視窗，請點擊有效視窗".to_string())?;
+    let target = resolve_scroll_target(
+        &app, monitor_index, selection_x, selection_y, selection_width, selection_height,
+    )?;
+    let coordinate_scale = target.coordinate_scale;
+    let global_selection_x = target.global_x;
+    let global_selection_y = target.global_y;
+    let global_selection_width = target.width;
+    let global_selection_height = target.height;
+    let win = target.window;
     let target_app = win.app_name().unwrap_or_default();
     let target_title = win.title().unwrap_or_default();
     let strategy = classify_scroll_target(&target_app, &target_title);
