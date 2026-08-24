@@ -31,6 +31,7 @@ mod scroll_trigger;
 mod system_recording;
 mod capture_controls;
 mod monitor_capture;
+mod editor_windows;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -238,7 +239,7 @@ pub fn run() {
                         });
                     }
                     "open_image" => {
-                        let _ = crate::capture::open_image_in_main_editor(app.clone());
+                        let _ = crate::editor_windows::open_image_in_main_editor(app.clone());
                     }
                     "show_settings" => {
                         if let Some(window) = app.get_webview_window("main") {
@@ -260,9 +261,9 @@ pub fn run() {
             monitor_capture::list_monitors,
             monitor_capture::capture_screens,
             capture::trigger_screenshot,
-            capture::open_image_editor,
-            capture::open_image_editor_data,
-            capture::open_image_in_main_editor,
+            editor_windows::open_image_editor,
+            editor_windows::open_image_editor_data,
+            editor_windows::open_image_in_main_editor,
             capture_controls::close_capture_windows,
             capture_controls::open_recording_control,
             capture_controls::open_recording_start_control,

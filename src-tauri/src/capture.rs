@@ -1,11 +1,9 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::RgbaImage;
-use tauri::{Emitter, Manager};
-use tauri_plugin_dialog::DialogExt;
+use tauri::Emitter;
 use xcap::Monitor;
 use crate::capture_output::save_capture_png;
 use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
-use crate::editor_image::load_editor_image;
 use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
@@ -119,6 +117,7 @@ pub fn trigger_screenshot(
     Ok(())
 }
 
+/*
 fn create_image_editor_window(
     app: tauri::AppHandle,
     state: tauri::State<'_, crate::PinnedImageState>,
@@ -228,6 +227,8 @@ pub fn open_image_in_main_editor(
         });
     Ok(())
 }
+
+*/
 
 #[tauri::command]
 pub fn capture_screen_region(
