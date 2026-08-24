@@ -28,6 +28,7 @@ mod scroll_target;
 mod scroll_target_window;
 mod monitor_resolution;
 mod scroll_trigger;
+mod system_recording;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
