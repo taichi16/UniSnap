@@ -6,6 +6,7 @@ mod config;
 mod editor_image;
 mod frame_source;
 mod h264_sample;
+mod mp4_config;
 mod image_data;
 mod record;
 mod recording_crop;

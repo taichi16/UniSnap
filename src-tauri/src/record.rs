@@ -9,7 +9,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use mp4::{
-    AacConfig, AvcConfig, Bytes, FourCC, Mp4Config, Mp4Sample, Mp4Writer, TrackConfig,
+    AacConfig, Bytes, Mp4Sample, Mp4Writer, TrackConfig,
 };
 use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
@@ -23,6 +23,7 @@ use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
 use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
+use crate::mp4_config::{default_mp4_config, h264_video_track};
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -376,15 +377,7 @@ fn encode_recording(
     let mut encoder = Encoder::with_api_config(OpenH264API::from_source(), encoder_config)
         .map_err(|e| format!("建立 H.264 編碼器失敗：{e}"))?;
     let file = File::create(&path).map_err(|e| format!("建立 MP4 檔案失敗：{e}"))?;
-    let config = Mp4Config {
-        major_brand: "isom".parse::<FourCC>().map_err(|e| e.to_string())?,
-        minor_version: 512,
-        compatible_brands: ["isom", "iso2", "avc1", "mp41"]
-            .into_iter()
-            .map(|s| s.parse::<FourCC>().map_err(|e| e.to_string()))
-            .collect::<Result<Vec<_>, _>>()?,
-        timescale: 1_000,
-    };
+    let config = default_mp4_config()?;
     let mut writer = Mp4Writer::write_start(BufWriter::new(file), &config)
         .map_err(|e| format!("初始化 MP4 失敗：{e}"))?;
     let audio_info = match audio_track_info(audio.as_ref()) {
@@ -435,12 +428,12 @@ fn encode_recording(
         }
         if !track_added {
             writer
-                .add_track(&TrackConfig::from(AvcConfig {
-                    width: crop.width as u16,
-                    height: crop.height as u16,
-                    seq_param_set: encoded_sample.sps.ok_or("第一個 H.264 影格缺少 SPS")?,
-                    pic_param_set: encoded_sample.pps.ok_or("第一個 H.264 影格缺少 PPS")?,
-                }))
+                .add_track(&h264_video_track(
+                    crop.width,
+                    crop.height,
+                    encoded_sample.sps.ok_or("第一個 H.264 影格缺少 SPS")?,
+                    encoded_sample.pps.ok_or("第一個 H.264 影格缺少 PPS")?,
+                ))
                 .map_err(|e| format!("建立 MP4 視訊軌失敗：{e}"))?;
             track_added = true;
             // Track 1 is deliberately the video track because all video
