@@ -33,6 +33,7 @@ mod capture_controls;
 mod monitor_capture;
 mod editor_windows;
 mod capture_io;
+mod capture_modes;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -272,8 +273,8 @@ pub fn run() {
             capture_io::copy_screenshot_to_clipboard,
             capture_io::inspect_saved_file,
             capture_io::capture_screen_region,
-            capture::capture_full_screen,
-            capture::capture_work_area,
+            capture_modes::capture_full_screen,
+            capture_modes::capture_work_area,
             config::load_config,
             config::save_config,
             record::start_recording,

@@ -2,7 +2,6 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::RgbaImage;
 use tauri::Emitter;
 use xcap::Monitor;
-use crate::capture_output::save_capture_png;
 use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
 use crate::image_data::rgba_to_jpeg_data_url;
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
@@ -11,7 +10,6 @@ use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
 use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
-use crate::monitor_resolution::resolve_xcap_monitor;
 
 #[tauri::command]
 pub fn trigger_screenshot(
@@ -511,80 +509,3 @@ mod capture_tests {
 
 // Fix 9: Frontend handles its own show/hide for full/work area captures.
 // Backend only captures and saves; no restore needed here.
-#[tauri::command]
-pub fn capture_full_screen(
-    app: tauri::AppHandle,
-    monitor_index: Option<usize>,
-) -> Result<String, String> {
-    std::thread::sleep(std::time::Duration::from_millis(400));
-
-    let tauri_monitors = app
-        .available_monitors()
-        .map_err(|e| format!("Failed to get Tauri monitors: {}", e))?;
-    if tauri_monitors.is_empty() {
-        return Err("No monitors found".to_string());
-    }
-    let idx = monitor_index.unwrap_or(0).min(tauri_monitors.len() - 1);
-    let tauri_mon = &tauri_monitors[idx];
-    let xcap_monitors =
-        Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let target_xcap = resolve_xcap_monitor(tauri_mon, &xcap_monitors, idx)
-        .ok_or_else(|| format!("No matching monitor at index {}", idx))?;
-    let img = target_xcap
-        .capture_image()
-        .map_err(|e| format!("Capture error: {}", e))?;
-
-    save_capture_png(app, &img, "Screenshot")
-}
-
-#[tauri::command]
-pub fn capture_work_area(
-    app: tauri::AppHandle,
-    monitor_index: Option<usize>,
-) -> Result<String, String> {
-    std::thread::sleep(std::time::Duration::from_millis(400));
-
-    let tauri_monitors = app
-        .available_monitors()
-        .map_err(|e| format!("Failed to get Tauri monitors: {}", e))?;
-    if tauri_monitors.is_empty() {
-        return Err("No monitors found".to_string());
-    }
-    let idx = monitor_index.unwrap_or(0).min(tauri_monitors.len() - 1);
-    let tauri_mon = &tauri_monitors[idx];
-    let phys_x = tauri_mon.position().x;
-    let phys_y = tauri_mon.position().y;
-    let work_area = tauri_mon.work_area();
-
-    let xcap_monitors =
-        Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let target_xcap = resolve_xcap_monitor(tauri_mon, &xcap_monitors, idx)
-        .ok_or_else(|| format!("No matching monitor at index {}", idx))?;
-    let full_img = target_xcap
-        .capture_image()
-        .map_err(|e| format!("Capture error: {}", e))?;
-    let mut rgba_img = full_img;
-
-    let bounds = work_area_crop_bounds(
-        phys_x,
-        phys_y,
-        work_area.position.x,
-        work_area.position.y,
-        work_area.size.width,
-        work_area.size.height,
-        rgba_img.width(),
-        rgba_img.height(),
-    )
-    .ok_or_else(|| "Work area is outside the selected monitor".to_string())?;
-
-    let cropped_img = image::imageops::crop(
-        &mut rgba_img,
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-    )
-    .to_image();
-
-    save_capture_png(app, &cropped_img, "Screenshot_WorkArea")
-}
