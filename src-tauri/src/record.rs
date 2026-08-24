@@ -7,7 +7,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use mp4::{AacConfig, Bytes, TrackConfig};
+use mp4::Bytes;
 use openh264::encoder::{
     FrameType,
 };
@@ -20,7 +20,7 @@ use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
 use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
-use crate::mp4_config::h264_video_track;
+use crate::recording_tracks::add_recording_tracks;
 use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
 use crate::recording_finalize::finalize_mp4;
 use crate::recording_timing::next_timed_frame;
@@ -381,7 +381,7 @@ fn encode_recording(
     let mut next_frame_at = Instant::now();
     let mut pending = Some(first);
     let mut pending_sample: Option<PendingVideoSample> = None;
-    let mut track_added = false;
+    let mut tracks_added = false;
     let mut frame_count = 0u64;
 
     loop {
@@ -410,29 +410,16 @@ fn encode_recording(
         if matches!(frame_type, FrameType::Skip | FrameType::Invalid) {
             continue;
         }
-        if !track_added {
-            writer
-                .add_track(&h264_video_track(
-                    crop.width,
-                    crop.height,
-                    encoded_sample.sps.ok_or("第一個 H.264 影格缺少 SPS")?,
-                    encoded_sample.pps.ok_or("第一個 H.264 影格缺少 PPS")?,
-                ))
-                .map_err(|e| format!("建立 MP4 視訊軌失敗：{e}"))?;
-            track_added = true;
-            // Track 1 is deliberately the video track because all video
-            // samples below are written to track 1. Add audio second so it
-            // receives track 2 and cannot silently swap the two streams.
-            if let Some(audio_info) = audio_info.as_ref() {
-                writer
-                    .add_track(&TrackConfig::from(AacConfig {
-                        bitrate: 128_000,
-                        profile: mp4::AudioObjectType::AacLowComplexity,
-                        freq_index: audio_info.freq_index,
-                        chan_conf: audio_info.channel_config,
-                    }))
-                    .map_err(|e| format!("建立 MP4 麥克風音軌失敗：{e}"))?;
-            }
+        if !tracks_added {
+            add_recording_tracks(
+                &mut writer,
+                crop.width,
+                crop.height,
+                encoded_sample.sps.ok_or("第一個 H.264 影格缺少 SPS")?,
+                encoded_sample.pps.ok_or("第一個 H.264 影格缺少 PPS")?,
+                audio_info.as_ref(),
+            )?;
+            tracks_added = true;
         }
         if !encoded_sample.bytes.is_empty() {
             let timestamp = if pending_sample.is_none() {

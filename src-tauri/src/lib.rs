@@ -15,6 +15,7 @@ mod recording_audio_writer;
 mod recording_encoder_init;
 mod recording_finalize;
 mod recording_timing;
+mod recording_tracks;
 mod recording_video_writer;
 mod recording_output;
 mod record_types;
