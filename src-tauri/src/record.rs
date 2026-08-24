@@ -9,7 +9,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use mp4::{
-    AacConfig, Bytes, Mp4Sample, Mp4Writer, TrackConfig,
+    AacConfig, Bytes, Mp4Writer, TrackConfig,
 };
 use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
@@ -26,6 +26,7 @@ use crate::h264_sample::extract_h264_sample;
 use crate::mp4_config::{default_mp4_config, h264_video_track};
 use openh264::OpenH264API;
 use crate::recording_audio_writer::write_microphone_track;
+use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
 use tauri::AppHandle;
 use xcap::{Frame, Monitor};
 
@@ -392,7 +393,7 @@ fn encode_recording(
     let recording_started_at = Instant::now();
     let mut next_frame_at = Instant::now();
     let mut pending = Some(first);
-    let mut pending_sample: Option<(u64, bool, Bytes)> = None;
+    let mut pending_sample: Option<PendingVideoSample> = None;
     let mut track_added = false;
     let mut frame_count = 0u64;
 
@@ -461,18 +462,12 @@ fn encode_recording(
                 let duration = timestamp
                     .saturating_sub(previous_timestamp)
                     .clamp(1, u32::MAX as u64) as u32;
-                writer
-                    .write_sample(
-                        1,
-                        &Mp4Sample {
-                            start_time: previous_timestamp,
-                            duration,
-                            rendering_offset: 0,
-                            is_sync: previous_sync,
-                            bytes: previous_bytes,
-                        },
-                    )
-                    .map_err(|e| format!("寫入 MP4 影格失敗：{e}"))?;
+                write_video_sample(
+                    &mut writer,
+                    (previous_timestamp, previous_sync, previous_bytes),
+                    duration,
+                    false,
+                )?;
                 frame_count += 1;
             }
             pending_sample = Some((
@@ -488,18 +483,7 @@ fn encode_recording(
             .saturating_sub(timestamp)
             .max(frame_duration as u64)
             .clamp(1, u32::MAX as u64) as u32;
-        writer
-            .write_sample(
-                1,
-                &Mp4Sample {
-                    start_time: timestamp,
-                    duration,
-                    rendering_offset: 0,
-                    is_sync,
-                    bytes,
-                },
-            )
-            .map_err(|e| format!("寫入最後一個 MP4 影格失敗：{e}"))?;
+        write_video_sample(&mut writer, (timestamp, is_sync, bytes), duration, true)?;
         frame_count += 1;
     }
     if frame_count == 0 {
