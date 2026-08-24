@@ -14,7 +14,10 @@ pub fn rgba_to_jpeg_data_url(image: &RgbaImage) -> Result<String, String> {
             image::ExtendedColorType::Rgb8,
         )
         .map_err(|error| format!("Failed to encode image to JPEG: {error}"))?;
-    Ok(format!("data:image/jpeg;base64,{}", STANDARD.encode(buffer)))
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        STANDARD.encode(buffer)
+    ))
 }
 
 /// Decodes either a data URL or a bare Base64 payload.
@@ -51,7 +54,8 @@ pub fn encode_requested_image(
         .map_err(|error| format!("無法轉換 JPG：{error}"))?
         .to_rgb8();
     let mut output = Vec::new();
-    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality as u8);
+    let mut encoder =
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality as u8);
     encoder
         .encode(
             rgb.as_raw(),
@@ -61,4 +65,43 @@ pub fn encode_requested_image(
         )
         .map_err(|error| format!("JPG 編碼失敗：{error}"))?;
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{GenericImageView, ImageBuffer, Rgba};
+
+    #[test]
+    fn decodes_data_url_and_bare_base64_payloads() {
+        let source = b"unisnap-image";
+        let encoded = STANDARD.encode(source);
+        assert_eq!(
+            decode_data_url(&format!("data:image/png;base64,{encoded}")).unwrap(),
+            source
+        );
+        assert_eq!(decode_data_url(&encoded).unwrap(), source);
+    }
+
+    #[test]
+    fn rejects_invalid_base64_payload() {
+        let error = decode_data_url("data:image/png;base64,not valid base64").unwrap_err();
+        assert!(error.contains("Base64 decode error"));
+    }
+
+    #[test]
+    fn encodes_rgba_preview_as_decodable_jpeg() {
+        let image = ImageBuffer::from_fn(3, 2, |x, y| {
+            if (x + y) % 2 == 0 {
+                Rgba([255, 0, 0, 255])
+            } else {
+                Rgba([0, 0, 255, 255])
+            }
+        });
+        let data_url = rgba_to_jpeg_data_url(&image).unwrap();
+        assert!(data_url.starts_with("data:image/jpeg;base64,"));
+        let bytes = decode_data_url(&data_url).unwrap();
+        let decoded = image::load_from_memory(&bytes).unwrap();
+        assert_eq!(decoded.dimensions(), (3, 2));
+    }
 }
