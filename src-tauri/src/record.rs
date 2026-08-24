@@ -9,8 +9,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use mp4::{
-    AacConfig, AvcConfig, Bytes, ChannelConfig, FourCC, Mp4Config, Mp4Sample, Mp4Writer,
-    SampleFreqIndex, TrackConfig,
+    AacConfig, AvcConfig, Bytes, FourCC, Mp4Config, Mp4Sample, Mp4Writer, TrackConfig,
 };
 use openh264::encoder::{
     BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
@@ -22,6 +21,7 @@ use crate::audio_capture::{start_audio_capture, AudioCapture};
 use crate::frame_source::{CaptureRegion, FrameSource};
 use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
+use crate::recording_audio::audio_track_info;
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -396,54 +396,13 @@ fn encode_recording(
     };
     let mut writer = Mp4Writer::write_start(BufWriter::new(file), &config)
         .map_err(|e| format!("初始化 MP4 失敗：{e}"))?;
-    if let Some(capture) = audio.as_ref() {
-        if !matches!(
-            capture.sample_rate,
-            96_000
-                | 88_200
-                | 64_000
-                | 48_000
-                | 44_100
-                | 32_000
-                | 24_000
-                | 22_050
-                | 16_000
-                | 12_000
-                | 11_025
-                | 8_000
-                | 7_350
-        ) {
+    let audio_info = match audio_track_info(audio.as_ref()) {
+        Ok(info) => info,
+        Err(error) => {
             let _ = fs::remove_file(&path);
-            return Err(format!(
-                "麥克風取樣率 {} Hz 無法封裝為 MP4 AAC 音軌",
-                capture.sample_rate
-            ));
+            return Err(error);
         }
-    }
-    let audio_info = audio.as_ref().map(|capture| {
-        let freq_index = match capture.sample_rate {
-            96_000 => SampleFreqIndex::Freq96000,
-            88_200 => SampleFreqIndex::Freq88200,
-            64_000 => SampleFreqIndex::Freq64000,
-            48_000 => SampleFreqIndex::Freq48000,
-            44_100 => SampleFreqIndex::Freq44100,
-            32_000 => SampleFreqIndex::Freq32000,
-            24_000 => SampleFreqIndex::Freq24000,
-            22_050 => SampleFreqIndex::Freq22050,
-            16_000 => SampleFreqIndex::Freq16000,
-            12_000 => SampleFreqIndex::Freq12000,
-            11_025 => SampleFreqIndex::Freq11025,
-            8_000 => SampleFreqIndex::Freq8000,
-            7_350 => SampleFreqIndex::Freq7350,
-            _ => unreachable!("unsupported microphone sample rate was rejected above"),
-        };
-        let chan_conf = if capture.channels == 1 {
-            ChannelConfig::Mono
-        } else {
-            ChannelConfig::Stereo
-        };
-        (capture.sample_rate, capture.channels, freq_index, chan_conf)
-    });
+    };
     let frame_duration = 1_000 / fps;
     let interval = Duration::from_secs_f64(1.0 / fps as f64);
     let recording_started_at = Instant::now();
@@ -515,13 +474,13 @@ fn encode_recording(
             // Track 1 is deliberately the video track because all video
             // samples below are written to track 1. Add audio second so it
             // receives track 2 and cannot silently swap the two streams.
-            if let Some((_, _, freq_index, chan_conf)) = audio_info {
+            if let Some(audio_info) = audio_info.as_ref() {
                 writer
                     .add_track(&TrackConfig::from(AacConfig {
                         bitrate: 128_000,
                         profile: mp4::AudioObjectType::AacLowComplexity,
-                        freq_index,
-                        chan_conf,
+                        freq_index: audio_info.freq_index,
+                        chan_conf: audio_info.channel_config,
                     }))
                     .map_err(|e| format!("建立 MP4 麥克風音軌失敗：{e}"))?;
             }

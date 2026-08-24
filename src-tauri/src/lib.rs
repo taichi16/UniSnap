@@ -7,6 +7,7 @@ mod frame_source;
 mod image_data;
 mod record;
 mod recording_crop;
+mod recording_audio;
 mod recording_output;
 mod record_types;
 mod scroll_matching;
