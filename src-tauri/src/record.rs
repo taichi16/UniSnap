@@ -23,6 +23,7 @@ use crate::h264_sample::extract_h264_sample;
 use crate::mp4_config::h264_video_track;
 use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
 use crate::recording_finalize::finalize_mp4;
+use crate::recording_timing::next_timed_frame;
 use crate::recording_audio_writer::write_microphone_track;
 use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
 use tauri::AppHandle;
@@ -384,22 +385,18 @@ fn encode_recording(
     let mut frame_count = 0u64;
 
     loop {
-        if stop.load(Ordering::SeqCst) && pending.is_none() {
-            break;
-        }
-        let frame = if let Some(frame) = pending.take() {
-            frame
-        } else {
-            match frame_source.next_frame(Duration::from_millis(80))? {
-                Some(frame) => frame,
-                None if stop.load(Ordering::SeqCst) => break,
-                None => continue,
+        let Some(frame) = next_timed_frame(
+            &frame_source,
+            &mut pending,
+            &stop,
+            &mut next_frame_at,
+            interval,
+        )? else {
+            if stop.load(Ordering::SeqCst) {
+                break;
             }
-        };
-        if Instant::now() < next_frame_at {
             continue;
-        }
-        next_frame_at = Instant::now() + interval;
+        };
         let rgba = crop_rgba(&frame, crop)?;
         let yuv = YUVBuffer::from_rgb_source(RgbaSliceU8::new(
             &rgba,
