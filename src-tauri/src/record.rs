@@ -1,5 +1,4 @@
-use std::fs::{self, File};
-use std::io::BufWriter;
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{
@@ -8,11 +7,9 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use mp4::{
-    AacConfig, Bytes, Mp4Writer, TrackConfig,
-};
+use mp4::{AacConfig, Bytes, TrackConfig};
 use openh264::encoder::{
-    BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, UsageType,
+    FrameType,
 };
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 pub use crate::record_types::RecordingState;
@@ -23,8 +20,8 @@ use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
 use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
-use crate::mp4_config::{default_mp4_config, h264_video_track};
-use openh264::OpenH264API;
+use crate::mp4_config::h264_video_track;
+use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
 use crate::recording_audio_writer::write_microphone_track;
 use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
 use tauri::AppHandle;
@@ -367,20 +364,8 @@ fn encode_recording(
     stop: Arc<AtomicBool>,
     audio: Option<AudioCapture>,
 ) -> Result<RecordingResult, String> {
-    let encoder_config = EncoderConfig::new()
-        .usage_type(UsageType::ScreenContentRealTime)
-        .max_frame_rate(FrameRate::from_hz(fps as f32))
-        .bitrate(BitRate::from_bps(
-            (crop.width * crop.height * fps / 8).clamp(2_000_000, 20_000_000),
-        ))
-        .intra_frame_period(IntraFramePeriod::from_num_frames(fps * 2))
-        .skip_frames(false);
-    let mut encoder = Encoder::with_api_config(OpenH264API::from_source(), encoder_config)
-        .map_err(|e| format!("建立 H.264 編碼器失敗：{e}"))?;
-    let file = File::create(&path).map_err(|e| format!("建立 MP4 檔案失敗：{e}"))?;
-    let config = default_mp4_config()?;
-    let mut writer = Mp4Writer::write_start(BufWriter::new(file), &config)
-        .map_err(|e| format!("初始化 MP4 失敗：{e}"))?;
+    let mut encoder = create_h264_encoder(fps, crop)?;
+    let mut writer = create_mp4_writer(&path)?;
     let audio_info = match audio_track_info(audio.as_ref()) {
         Ok(info) => info,
         Err(error) => {
@@ -572,6 +557,7 @@ pub fn trigger_scroll_capture(config: ScrollConfig) -> Result<String, String> {
 #[cfg(test)]
 mod recording_tests {
     use super::*;
+    use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
