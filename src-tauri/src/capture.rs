@@ -1,6 +1,4 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-#[cfg(not(target_os = "windows"))]
-use enigo::{Axis, Coordinate, Enigo, Mouse, Settings};
 use image::RgbaImage;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
@@ -11,6 +9,7 @@ use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_da
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
 use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
+use crate::scroll_input::ScrollController;
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -682,66 +681,6 @@ pub fn cancel_scroll_capture() {
 
 const MAX_SCROLL_STEPS: usize = 120;
 const MAX_STITCHED_HEIGHT: u32 = 60_000;
-
-#[cfg(target_os = "windows")]
-#[link(name = "user32")]
-extern "system" {
-    fn SetCursorPos(x: i32, y: i32) -> i32;
-    fn mouse_event(flags: u32, dx: u32, dy: u32, data: u32, extra_info: usize);
-}
-
-struct ScrollController {
-    #[cfg(not(target_os = "windows"))]
-    input: Enigo,
-}
-
-impl ScrollController {
-    fn new() -> Result<Self, String> {
-        #[cfg(target_os = "windows")]
-        {
-            Ok(Self {})
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            let input = Enigo::new(&Settings::default())
-                .map_err(|e| format!("Failed to initialize input control: {}", e))?;
-            Ok(Self { input })
-        }
-    }
-
-    fn position_pointer(&mut self, x: i32, y: i32) -> Result<(), String> {
-        #[cfg(target_os = "windows")]
-        unsafe {
-            if SetCursorPos(x, y) == 0 {
-                return Err("Failed to position pointer".to_string());
-            }
-            Ok(())
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            self.input
-                .move_mouse(x, y, Coordinate::Abs)
-                .map_err(|e| format!("Failed to position pointer: {}", e))
-        }
-    }
-
-    fn scroll_down(&mut self, lines: i32) -> Result<(), String> {
-        #[cfg(target_os = "windows")]
-        unsafe {
-            const MOUSEEVENTF_WHEEL: u32 = 0x0800;
-            const WHEEL_DELTA: i32 = 120;
-            let delta = -lines.saturating_mul(WHEEL_DELTA);
-            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta as u32, 0);
-            Ok(())
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            self.input
-                .scroll(lines, Axis::Vertical)
-                .map_err(|e| format!("Failed to scroll target window: {}", e))
-        }
-    }
-}
 
 #[tauri::command]
 pub fn auto_scroll_capture_window(
