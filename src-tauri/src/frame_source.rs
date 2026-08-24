@@ -4,6 +4,7 @@ use std::time::Duration;
 use xcap::{Frame, Monitor, VideoRecorder};
 
 /// Owns the active frame producer for video and scrolling captures.
+#[allow(dead_code)]
 pub enum FrameSource {
     Receiver(mpsc::Receiver<Frame>),
     Native {

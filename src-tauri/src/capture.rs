@@ -1,7 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::RgbaImage;
 use tauri::Emitter;
-use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
 use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
@@ -267,9 +266,10 @@ pub fn auto_scroll_capture_window(
 mod capture_tests {
     use super::{
         classify_scroll_target, find_scroll_shift, find_scroll_shift_near, fixed_column_mask,
-        fixed_row_mask, frames_are_stable, work_area_crop_bounds, CropBounds,
+        fixed_row_mask, frames_are_stable,
         ScrollCaptureStrategy,
     };
+    use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
     use image::{imageops::crop_imm, Rgba, RgbaImage};
 
     fn patterned_document(width: u32, height: u32) -> RgbaImage {

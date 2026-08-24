@@ -14,7 +14,7 @@ use openh264::formats::{RgbaSliceU8, YUVBuffer};
 pub use crate::record_types::RecordingState;
 use crate::record_types::{RecordingResult, RecordingSession, ScrollConfig};
 use crate::audio_capture::{start_audio_capture, AudioCapture};
-use crate::frame_source::{CaptureRegion, FrameSource};
+use crate::frame_source::FrameSource;
 use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
 use crate::recording_audio::audio_track_info;
@@ -328,6 +328,7 @@ pub fn trigger_scroll_capture(config: ScrollConfig) -> Result<String, String> {
 #[cfg(test)]
 mod recording_tests {
     use super::*;
+    use crate::frame_source::CaptureRegion;
     use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
