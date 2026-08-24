@@ -14,6 +14,7 @@ use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
 use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
+use crate::monitor_resolution::resolve_xcap_monitor;
 
 /// Lightweight monitor listing using Tauri's own API.
 /// Does NOT require screen recording permission on macOS.
@@ -471,29 +472,12 @@ pub fn capture_screen_region(
     }
     let idx = monitor_index.unwrap_or(0).min(tauri_monitors.len() - 1);
     let tauri_mon = &tauri_monitors[idx];
-    let phys_x = tauri_mon.position().x;
-    let phys_y = tauri_mon.position().y;
     let scale_factor = tauri_mon.scale_factor();
 
     let xcap_monitors =
         Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let matched_xcap = xcap_monitors
-        .iter()
-        .find(|xm| {
-            let xm_x = xm.x().unwrap_or(i32::MIN);
-            let xm_y = xm.y().unwrap_or(i32::MIN);
-            xm_x == phys_x && xm_y == phys_y
-        })
-        .or_else(|| {
-            let tname = tauri_mon.name().cloned().unwrap_or_default();
-            xcap_monitors
-                .iter()
-                .find(|xm| xm.name().unwrap_or_default() == tname)
-        })
-        .or_else(|| xcap_monitors.get(idx));
-
-    let target_xcap =
-        matched_xcap.ok_or_else(|| format!("No matching monitor at index {}", idx))?;
+    let target_xcap = resolve_xcap_monitor(tauri_mon, &xcap_monitors, idx)
+        .ok_or_else(|| format!("No matching monitor at index {}", idx))?;
     let full_img = target_xcap
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;
@@ -1046,28 +1030,10 @@ pub fn capture_full_screen(
     }
     let idx = monitor_index.unwrap_or(0).min(tauri_monitors.len() - 1);
     let tauri_mon = &tauri_monitors[idx];
-    let phys_x = tauri_mon.position().x;
-    let phys_y = tauri_mon.position().y;
-
     let xcap_monitors =
         Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let matched_xcap = xcap_monitors
-        .iter()
-        .find(|xm| {
-            let xm_x = xm.x().unwrap_or(i32::MIN);
-            let xm_y = xm.y().unwrap_or(i32::MIN);
-            xm_x == phys_x && xm_y == phys_y
-        })
-        .or_else(|| {
-            let tname = tauri_mon.name().cloned().unwrap_or_default();
-            xcap_monitors
-                .iter()
-                .find(|xm| xm.name().unwrap_or_default() == tname)
-        })
-        .or_else(|| xcap_monitors.get(idx));
-
-    let target_xcap =
-        matched_xcap.ok_or_else(|| format!("No matching monitor at index {}", idx))?;
+    let target_xcap = resolve_xcap_monitor(tauri_mon, &xcap_monitors, idx)
+        .ok_or_else(|| format!("No matching monitor at index {}", idx))?;
     let img = target_xcap
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;
@@ -1096,23 +1062,8 @@ pub fn capture_work_area(
 
     let xcap_monitors =
         Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-    let matched_xcap = xcap_monitors
-        .iter()
-        .find(|xm| {
-            let xm_x = xm.x().unwrap_or(i32::MIN);
-            let xm_y = xm.y().unwrap_or(i32::MIN);
-            xm_x == phys_x && xm_y == phys_y
-        })
-        .or_else(|| {
-            let tname = tauri_mon.name().cloned().unwrap_or_default();
-            xcap_monitors
-                .iter()
-                .find(|xm| xm.name().unwrap_or_default() == tname)
-        })
-        .or_else(|| xcap_monitors.get(idx));
-
-    let target_xcap =
-        matched_xcap.ok_or_else(|| format!("No matching monitor at index {}", idx))?;
+    let target_xcap = resolve_xcap_monitor(tauri_mon, &xcap_monitors, idx)
+        .ok_or_else(|| format!("No matching monitor at index {}", idx))?;
     let full_img = target_xcap
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;

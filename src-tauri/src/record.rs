@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Arc,
@@ -26,6 +25,7 @@ use crate::recording_finalize::finalize_mp4;
 use crate::recording_timing::next_timed_frame;
 use crate::recording_audio_writer::write_microphone_track;
 use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
+use crate::scroll_trigger::trigger_scroll_capture as trigger_scroll_capture_impl;
 use tauri::AppHandle;
 use xcap::{Frame, Monitor};
 
@@ -150,35 +150,6 @@ fn start_system_recording(
         width,
         height,
     })
-}
-
-#[cfg(target_os = "macos")]
-#[link(name = "CoreGraphics", kind = "framework")]
-#[link(name = "CoreFoundation", kind = "framework")]
-extern "C" {
-    fn CGEventCreateMouseEvent(
-        source: *mut std::ffi::c_void,
-        mouse_type: u32,
-        position: CGPoint,
-        button: u32,
-    ) -> *mut std::ffi::c_void;
-    fn CGEventCreateScrollWheelEvent2(
-        source: *mut std::ffi::c_void,
-        units: u32,
-        wheel_count: u32,
-        wheel1: i32,
-        wheel2: i32,
-        wheel3: i32,
-    ) -> *mut std::ffi::c_void;
-    fn CGEventPost(tap: u32, event: *mut std::ffi::c_void);
-    fn CFRelease(cf: *mut std::ffi::c_void);
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CGPoint {
-    x: f64,
-    y: f64,
 }
 
 #[tauri::command]
@@ -474,61 +445,7 @@ fn encode_recording(
 
 #[tauri::command]
 pub fn trigger_scroll_capture(config: ScrollConfig) -> Result<String, String> {
-    let offset_x = config.monitor_offset_x.unwrap_or(0);
-    let offset_y = config.monitor_offset_y.unwrap_or(0);
-
-    let cx = (offset_x + config.x + (config.width as i32 / 2)) as f64;
-    let cy = (offset_y + config.y + (config.height as i32 / 2)) as f64;
-
-    let amount = config.scroll_amount.unwrap_or(5);
-
-    #[cfg(target_os = "macos")]
-    unsafe {
-        // Step 1: Click at center of selection to activate and focus the target application window
-        let pt = CGPoint { x: cx, y: cy };
-        // Mouse moved / click down (1) and up (2)
-        let down = CGEventCreateMouseEvent(std::ptr::null_mut(), 1, pt, 0);
-        if !down.is_null() {
-            CGEventPost(0, down);
-            CFRelease(down);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(30));
-        let up = CGEventCreateMouseEvent(std::ptr::null_mut(), 2, pt, 0);
-        if !up.is_null() {
-            CGEventPost(0, up);
-            CFRelease(up);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(60));
-
-        // Step 2: Send pixel-level scroll wheel events downwards (-280 pixels per scroll)
-        for _ in 0..amount {
-            let ev = CGEventCreateScrollWheelEvent2(
-                std::ptr::null_mut(),
-                0,    // 0 = kCGScrollEventUnitPixel
-                1,    // 1 wheel
-                -280, // negative is scroll down
-                0,
-                0,
-            );
-            if !ev.is_null() {
-                CGEventPost(0, ev);
-                CFRelease(ev);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(40));
-        }
-    }
-
-    // Step 3: AppleScript fallback keystrokes to ensure scroll in web browsers / word processors
-    #[cfg(target_os = "macos")]
-    {
-        let script = format!(
-            "tell application \"System Events\" to repeat {} times\nkey code 125\ndelay 0.03\nend repeat",
-            amount * 2
-        );
-        let _ = Command::new("osascript").arg("-e").arg(&script).output();
-    }
-
-    Ok("scroll_done".to_string())
+    trigger_scroll_capture_impl(config)
 }
 
 #[cfg(test)]

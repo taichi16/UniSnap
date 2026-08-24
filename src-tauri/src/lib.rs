@@ -26,6 +26,8 @@ mod scroll_composite;
 mod scroll_masks;
 mod scroll_target;
 mod scroll_target_window;
+mod monitor_resolution;
+mod scroll_trigger;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
