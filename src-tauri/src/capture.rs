@@ -10,6 +10,7 @@ use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_a
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
 use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
+use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
 
 /// Lightweight monitor listing using Tauri's own API.
@@ -922,69 +923,7 @@ pub fn auto_scroll_capture_window(
         ));
     }
 
-    // Compose in document coordinates, but only accept each destination pixel
-    // once.  Fixed overlays are skipped on later frames; overlapping frames
-    // can therefore back-fill pixels hidden by a composer/sidebar instead of
-    // leaving a white hole or duplicating the overlay at every boundary.
-    let mut composite = RgbaImage::from_pixel(
-        frame_width,
-        total_height,
-        image::Rgba([255, 255, 255, 255]),
-    );
-    let mut filled = vec![false; (frame_width * total_height) as usize];
-    let mut blocked_rows = vec![vec![false; frame_height as usize]; frames.len()];
-    let mut blocked_columns = vec![vec![false; frame_width as usize]; frames.len()];
-    for (transition, (row_mask, column_mask)) in fixed_masks.iter().enumerate() {
-        // Omit fixed overlays in both adjacent frames.  Otherwise pixels
-        // hidden by a bottom composer in the first frame are marked as filled
-        // too early and remain as pale/partial text in the final document.
-        for (row, is_fixed) in row_mask.iter().enumerate() {
-            if *is_fixed {
-                blocked_rows[transition][row] = true;
-                blocked_rows[transition + 1][row] = true;
-            }
-        }
-        for (column, is_fixed) in column_mask.iter().enumerate() {
-            if *is_fixed {
-                blocked_columns[transition][column] = true;
-                blocked_columns[transition + 1][column] = true;
-            }
-        }
-    }
-    for (frame_index, frame) in frames.iter().enumerate() {
-        let offset = frame_offsets[frame_index];
-        for y in 0..frame_height {
-            if blocked_rows[frame_index][y as usize] {
-                continue;
-            }
-            let destination_y = offset + y;
-            if destination_y >= total_height {
-                continue;
-            }
-            for x in 0..frame_width {
-                if blocked_columns[frame_index][x as usize] {
-                    continue;
-                }
-                let index = (destination_y * frame_width + x) as usize;
-                if !filled[index] {
-                    composite.put_pixel(x, destination_y, *frame.get_pixel(x, y));
-                    filled[index] = true;
-                }
-            }
-        }
-    }
-
-    let mut buffer = Vec::new();
-    eprintln!("[scroll] composite frames={} output={}x{}", frames.len(), frame_width, total_height);
-    composite
-        .write_to(
-            &mut std::io::Cursor::new(&mut buffer),
-            image::ImageFormat::Png,
-        )
-        .map_err(|e| format!("Encode error: {}", e))?;
-
-    let base64_image = STANDARD.encode(&buffer);
-    Ok(format!("data:image/png;base64,{}", base64_image))
+    compose_scroll_frames(&frames, &frame_offsets, &fixed_masks, total_height)
 }
 
 #[cfg(test)]

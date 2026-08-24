@@ -11,6 +11,7 @@ mod recording_output;
 mod record_types;
 mod scroll_matching;
 mod scroll_input;
+mod scroll_composite;
 mod scroll_masks;
 mod scroll_target;
 mod scroll_target_window;
