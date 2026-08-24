@@ -22,6 +22,7 @@ use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
 use crate::mp4_config::h264_video_track;
 use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
+use crate::recording_finalize::finalize_mp4;
 use crate::recording_audio_writer::write_microphone_track;
 use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
 use tauri::AppHandle;
@@ -478,15 +479,7 @@ fn encode_recording(
     if let Some(capture) = audio {
         write_microphone_track(&mut writer, capture)?;
     }
-    writer
-        .write_end()
-        .map_err(|e| format!("完成 MP4 存檔失敗：{e}"))?;
-    let size = fs::metadata(&path)
-        .map_err(|e| format!("無法驗證 MP4 檔案：{e}"))?
-        .len();
-    if size == 0 {
-        return Err("MP4 檔案為空".into());
-    }
+    finalize_mp4(writer, &path)?;
     Ok(RecordingResult {
         path: path.to_string_lossy().into_owned(),
         frame_count,
