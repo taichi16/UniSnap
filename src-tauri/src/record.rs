@@ -22,6 +22,7 @@ use crate::frame_source::{CaptureRegion, FrameSource};
 use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_output::recording_output_path;
 use crate::recording_audio::audio_track_info;
+use crate::h264_sample::extract_h264_sample;
 use openh264::OpenH264API;
 use rusty_aac::{AacEncoder, AacEncoderConfig};
 use tauri::AppHandle;
@@ -355,16 +356,6 @@ pub fn stop_recording(state: tauri::State<'_, RecordingState>) -> Result<Recordi
     result
 }
 
-fn strip_start_code(nal: &[u8]) -> &[u8] {
-    if nal.starts_with(&[0, 0, 0, 1]) {
-        &nal[4..]
-    } else if nal.starts_with(&[0, 0, 1]) {
-        &nal[3..]
-    } else {
-        nal
-    }
-}
-
 fn encode_recording(
     first: Frame,
     frame_source: FrameSource,
@@ -437,37 +428,18 @@ fn encode_recording(
         let encoded = encoder
             .encode(&yuv)
             .map_err(|e| format!("H.264 編碼失敗：{e}"))?;
-        let frame_type = encoded.frame_type();
+        let encoded_sample = extract_h264_sample(&encoded)?;
+        let frame_type = encoded_sample.frame_type;
         if matches!(frame_type, FrameType::Skip | FrameType::Invalid) {
             continue;
-        }
-        let mut sps = None;
-        let mut pps = None;
-        let mut sample = Vec::new();
-        for layer_index in 0..encoded.num_layers() {
-            let layer = encoded.layer(layer_index).ok_or("無法讀取 H.264 圖層")?;
-            for nal_index in 0..layer.nal_count() {
-                let nal = strip_start_code(layer.nal_unit(nal_index).ok_or("無法讀取 H.264 NAL")?);
-                if nal.is_empty() {
-                    continue;
-                }
-                match nal[0] & 0x1f {
-                    7 => sps = Some(nal.to_vec()),
-                    8 => pps = Some(nal.to_vec()),
-                    _ => {
-                        sample.extend_from_slice(&(nal.len() as u32).to_be_bytes());
-                        sample.extend_from_slice(nal);
-                    }
-                }
-            }
         }
         if !track_added {
             writer
                 .add_track(&TrackConfig::from(AvcConfig {
                     width: crop.width as u16,
                     height: crop.height as u16,
-                    seq_param_set: sps.ok_or("第一個 H.264 影格缺少 SPS")?,
-                    pic_param_set: pps.ok_or("第一個 H.264 影格缺少 PPS")?,
+                    seq_param_set: encoded_sample.sps.ok_or("第一個 H.264 影格缺少 SPS")?,
+                    pic_param_set: encoded_sample.pps.ok_or("第一個 H.264 影格缺少 PPS")?,
                 }))
                 .map_err(|e| format!("建立 MP4 視訊軌失敗：{e}"))?;
             track_added = true;
@@ -485,7 +457,7 @@ fn encode_recording(
                     .map_err(|e| format!("建立 MP4 麥克風音軌失敗：{e}"))?;
             }
         }
-        if !sample.is_empty() {
+        if !encoded_sample.bytes.is_empty() {
             let timestamp = if pending_sample.is_none() {
                 0
             } else {
@@ -513,7 +485,7 @@ fn encode_recording(
             pending_sample = Some((
                 timestamp,
                 matches!(frame_type, FrameType::IDR | FrameType::I),
-                Bytes::from(sample),
+                Bytes::from(encoded_sample.bytes),
             ));
         }
     }

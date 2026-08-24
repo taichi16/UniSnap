@@ -5,6 +5,7 @@ mod audio_capture;
 mod config;
 mod editor_image;
 mod frame_source;
+mod h264_sample;
 mod image_data;
 mod record;
 mod recording_crop;
