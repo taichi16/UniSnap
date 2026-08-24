@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
 use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
 use crate::capture_output::save_capture_png;
+use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
 use crate::editor_image::load_editor_image;
 use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
@@ -43,42 +44,6 @@ pub fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorBasicInfo>, Str
         })
         .collect();
     Ok(infos)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct CropBounds {
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-}
-
-/// Converts a desktop-global work-area rectangle into image-local pixels for
-/// one monitor. Tauri positions and sizes are already physical pixels, as is
-/// the image returned by xcap, so no DPI factor belongs in this conversion.
-fn work_area_crop_bounds(
-    monitor_x: i32,
-    monitor_y: i32,
-    work_x: i32,
-    work_y: i32,
-    work_width: u32,
-    work_height: u32,
-    image_width: u32,
-    image_height: u32,
-) -> Option<CropBounds> {
-    let x = work_x.saturating_sub(monitor_x).max(0) as u32;
-    let y = work_y.saturating_sub(monitor_y).max(0) as u32;
-    if x >= image_width || y >= image_height {
-        return None;
-    }
-    let width = work_width.min(image_width.saturating_sub(x));
-    let height = work_height.min(image_height.saturating_sub(y));
-    (width > 0 && height > 0).then_some(CropBounds {
-        x,
-        y,
-        width,
-        height,
-    })
 }
 
 #[tauri::command]
