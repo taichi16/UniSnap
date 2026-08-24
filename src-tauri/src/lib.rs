@@ -34,6 +34,7 @@ mod monitor_capture;
 mod editor_windows;
 mod capture_io;
 mod capture_modes;
+mod capture_overlay;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -62,7 +63,7 @@ pub(crate) fn apply_global_shortcuts(
                     let handle = app.clone();
                     tauri::async_runtime::spawn(async move {
                         let state = handle.state::<PinnedImageState>();
-                        let _ = crate::capture::trigger_screenshot(
+                        let _ = crate::capture_overlay::trigger_screenshot(
                             handle.clone(),
                             state.clone(),
                             None,
@@ -82,7 +83,7 @@ pub(crate) fn apply_global_shortcuts(
                     let handle = app.clone();
                     tauri::async_runtime::spawn(async move {
                         let state = handle.state::<PinnedImageState>();
-                        let _ = crate::capture::trigger_screenshot(
+                        let _ = crate::capture_overlay::trigger_screenshot(
                             handle.clone(),
                             state.clone(),
                             Some("record".to_string()),
@@ -232,7 +233,7 @@ pub fn run() {
                         let app_handle = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app_handle.state::<crate::PinnedImageState>();
-                            let _ = crate::capture::trigger_screenshot(
+                            let _ = crate::capture_overlay::trigger_screenshot(
                                 app_handle.clone(),
                                 state.clone(),
                                 None,
@@ -262,7 +263,7 @@ pub fn run() {
             greet,
             monitor_capture::list_monitors,
             monitor_capture::capture_screens,
-            capture::trigger_screenshot,
+            capture_overlay::trigger_screenshot,
             editor_windows::open_image_editor,
             editor_windows::open_image_editor_data,
             editor_windows::open_image_in_main_editor,

@@ -1,120 +1,13 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::RgbaImage;
 use tauri::Emitter;
-use xcap::Monitor;
 use crate::capture_geometry::{work_area_crop_bounds, CropBounds};
-use crate::image_data::rgba_to_jpeg_data_url;
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
 use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
 use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
-
-#[tauri::command]
-pub fn trigger_screenshot(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, crate::PinnedImageState>,
-    mode: Option<String>,
-    monitor_index: Option<usize>,
-) -> Result<(), String> {
-    // Ultra-low latency: 40ms is plenty for the window hide animation on macOS
-    std::thread::sleep(std::time::Duration::from_millis(40));
-
-    let mode_str = mode.unwrap_or_else(|| "screenshot".to_string());
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-
-    let tauri_monitors = app
-        .available_monitors()
-        .map_err(|e| format!("Failed to get Tauri monitors: {}", e))?;
-
-    if tauri_monitors.is_empty() {
-        return Err("No monitors found".to_string());
-    }
-
-    let xcap_monitors =
-        Monitor::all().map_err(|e| format!("Failed to list xcap monitors: {}", e))?;
-
-    // Decide which indices to process
-    let indices: Vec<usize> = if let Some(idx) = monitor_index {
-        vec![idx.min(tauri_monitors.len().saturating_sub(1))]
-    } else {
-        (0..tauri_monitors.len()).collect()
-    };
-
-    for index in indices {
-        let tauri_mon = &tauri_monitors[index];
-        let scale_factor = tauri_mon.scale_factor();
-
-        let phys_x = tauri_mon.position().x;
-        let phys_y = tauri_mon.position().y;
-        let phys_w = tauri_mon.size().width;
-        let phys_h = tauri_mon.size().height;
-
-        // Match xcap monitor by exact physical (x, y) position
-        let matched_xcap = xcap_monitors
-            .iter()
-            .find(|xm| {
-                let xm_x = xm.x().unwrap_or(i32::MIN);
-                let xm_y = xm.y().unwrap_or(i32::MIN);
-                xm_x == phys_x && xm_y == phys_y
-            })
-            .or_else(|| {
-                // Fallback: match by name
-                let tname = tauri_mon.name().cloned().unwrap_or_default();
-                xcap_monitors
-                    .iter()
-                    .find(|xm| xm.name().unwrap_or_default() == tname)
-            })
-            .or_else(|| xcap_monitors.get(index));
-
-        let target_xcap = matched_xcap
-            .ok_or_else(|| format!("Could not find matching monitor for index {}", index))?;
-
-        let image = target_xcap
-            .capture_image()
-            .map_err(|e| format!("Failed to capture monitor: {}", e))?;
-
-        // Ultra-fast JPEG encode (15ms vs 1200ms PNG)
-        let data_url = rgba_to_jpeg_data_url(&image)?;
-
-        let label = format!("capture_{}_{}", index, timestamp);
-        {
-            let mut map = state.0.lock().unwrap();
-            map.insert(label.clone(), data_url);
-        }
-
-        let window_url = tauri::WebviewUrl::App(
-            format!("index.html#/capture?label={}&mode={}", label, mode_str)
-                .parse()
-                .unwrap(),
-        );
-
-        let logical_x = phys_x as f64 / scale_factor;
-        let logical_y = phys_y as f64 / scale_factor;
-        let logical_w = phys_w as f64 / scale_factor;
-        let logical_h = phys_h as f64 / scale_factor;
-
-        tauri::WebviewWindowBuilder::new(&app, &label, window_url)
-            .title(format!("Capture Window {}", index))
-            .decorations(false)
-            .always_on_top(true)
-            .transparent(true)
-            .resizable(false)
-            .focused(true)
-            .accept_first_mouse(true)
-            .inner_size(logical_w, logical_h)
-            .position(logical_x, logical_y)
-            .build()
-            .map_err(|e| format!("Failed to build capture window: {}", e))?;
-    }
-
-    Ok(())
-}
-
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
