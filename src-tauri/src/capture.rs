@@ -4,6 +4,7 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
 use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
+use crate::capture_output::save_capture_png;
 use crate::editor_image::load_editor_image;
 use crate::image_data::{decode_data_url, encode_requested_image, rgba_to_jpeg_data_url};
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
@@ -1106,31 +1107,7 @@ pub fn capture_full_screen(
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;
 
-    let config = crate::config::load_config(app.clone()).unwrap_or_default();
-    let mut buffer = Vec::new();
-    img.write_to(
-        &mut std::io::Cursor::new(&mut buffer),
-        image::ImageFormat::Png,
-    )
-    .map_err(|e| format!("Encode error: {}", e))?;
-    let base64_image = STANDARD.encode(&buffer);
-
-    let default_name = format!(
-        "Screenshot_{}.png",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    );
-    let save_path = std::path::PathBuf::from(&config.save_directory).join(default_name);
-    let path_str = save_path.to_string_lossy().to_string();
-    let _ = save_and_copy_screenshot(
-        app.clone(),
-        base64_image,
-        Some(path_str.clone()),
-        config.auto_copy_to_clipboard,
-    );
-    Ok(path_str)
+    save_capture_png(app, &img, "Screenshot")
 }
 
 #[tauri::command]
@@ -1197,30 +1174,5 @@ pub fn capture_work_area(
     )
     .to_image();
 
-    let config = crate::config::load_config(app.clone()).unwrap_or_default();
-    let mut buffer = Vec::new();
-    cropped_img
-        .write_to(
-            &mut std::io::Cursor::new(&mut buffer),
-            image::ImageFormat::Png,
-        )
-        .map_err(|e| format!("Encode error: {}", e))?;
-    let base64_image = STANDARD.encode(&buffer);
-
-    let default_name = format!(
-        "Screenshot_WorkArea_{}.png",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    );
-    let save_path = std::path::PathBuf::from(&config.save_directory).join(default_name);
-    let path_str = save_path.to_string_lossy().to_string();
-    let _ = save_and_copy_screenshot(
-        app.clone(),
-        base64_image,
-        Some(path_str.clone()),
-        config.auto_copy_to_clipboard,
-    );
-    Ok(path_str)
+    save_capture_png(app, &cropped_img, "Screenshot_WorkArea")
 }

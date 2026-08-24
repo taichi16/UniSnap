@@ -1,4 +1,5 @@
 mod capture;
+mod capture_output;
 mod capture_types;
 mod audio_capture;
 mod config;
