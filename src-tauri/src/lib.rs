@@ -29,6 +29,7 @@ mod recording_timing;
 mod recording_tracks;
 mod recording_video_writer;
 mod scroll_composite;
+mod scroll_capture_helpers;
 mod scroll_input;
 mod scroll_masks;
 mod scroll_matching;

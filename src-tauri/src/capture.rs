@@ -1,4 +1,3 @@
-use image::RgbaImage;
 use tauri::Emitter;
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
 use crate::scroll_masks::{fixed_column_mask, fixed_row_mask};
@@ -7,6 +6,7 @@ use crate::scroll_input::ScrollController;
 use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
 use crate::capture_output::encode_png_data_url;
+use crate::scroll_capture_helpers::{crop_selection, strategy_label};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -43,11 +43,7 @@ pub fn auto_scroll_capture_window(
     let target_app = win.app_name().unwrap_or_default();
     let target_title = win.title().unwrap_or_default();
     let strategy = classify_scroll_target(&target_app, &target_title);
-    let strategy_name = match strategy {
-        ScrollCaptureStrategy::BrowserPage => "browser-page",
-        ScrollCaptureStrategy::DocumentApp => "document-app",
-        ScrollCaptureStrategy::DesktopStitch => "desktop-stitch",
-    };
+    let strategy_name = strategy_label(strategy);
     eprintln!(
         "[scroll] target app={:?} title={:?} strategy={}",
         target_app, target_title, strategy_name
@@ -75,31 +71,6 @@ pub fn auto_scroll_capture_window(
     let win_y = win.y().map_err(|e| e.to_string())?;
     let crop_x = global_selection_x.saturating_sub(win_x) as u32;
     let crop_y = global_selection_y.saturating_sub(win_y) as u32;
-    let crop_frame = |frame: RgbaImage| -> Result<RgbaImage, String> {
-        if crop_x >= frame.width()
-            || crop_y >= frame.height()
-            || crop_x.saturating_add(global_selection_width) > frame.width()
-            || crop_y.saturating_add(global_selection_height) > frame.height()
-        {
-            return Err(format!(
-                "選取範圍超出目標視窗：selection=({},{} {}x{}) window-frame={}x{}",
-                crop_x,
-                crop_y,
-                global_selection_width,
-                global_selection_height,
-                frame.width(),
-                frame.height()
-            ));
-        }
-        Ok(image::imageops::crop_imm(
-            &frame,
-            crop_x,
-            crop_y,
-            global_selection_width,
-            global_selection_height,
-        )
-        .to_image())
-    };
     eprintln!(
         "[scroll] selection logical=({},{} {}x{}) scale={:.3} global=({},{} {}x{}) window_origin=({},{}), crop=({},{} {}x{})",
         selection_x,
@@ -126,9 +97,13 @@ pub fn auto_scroll_capture_window(
     input.position_pointer(global_selection_x, global_selection_y)?;
     std::thread::sleep(std::time::Duration::from_millis(250));
 
-    let first_frame = crop_frame(win
-        .capture_image()
-        .map_err(|e| format!("Capture frame 1 failed: {}", e))?)?;
+    let first_frame = crop_selection(
+        &win.capture_image().map_err(|e| format!("Capture frame 1 failed: {}", e))?,
+        crop_x,
+        crop_y,
+        global_selection_width,
+        global_selection_height,
+    )?;
     let frame_width = first_frame.width();
     let frame_height = first_frame.height();
     let mut previous_frame = first_frame.clone();
@@ -156,18 +131,26 @@ pub fn auto_scroll_capture_window(
             break;
         }
 
-        let mut next_frame = crop_frame(win
-            .capture_image()
-            .map_err(|e| format!("Capture frame {} failed: {}", step + 1, e))?)?;
+        let mut next_frame = crop_selection(
+            &win.capture_image().map_err(|e| format!("Capture frame {} failed: {}", step + 1, e))?,
+            crop_x,
+            crop_y,
+            global_selection_width,
+            global_selection_height,
+        )?;
         let mut settle_attempts = 0usize;
         // Do not stitch a frame while the target is still animating or
         // re-laying out lazy content.  Capture successive samples until two
         // adjacent samples are visually stable, up to a bounded timeout.
         for attempt in 1..=8 {
             std::thread::sleep(std::time::Duration::from_millis(120));
-            let candidate = crop_frame(win
-                .capture_image()
-                .map_err(|e| format!("Capture settle frame {} failed: {}", step + 1, e))?)?;
+            let candidate = crop_selection(
+                &win.capture_image().map_err(|e| format!("Capture settle frame {} failed: {}", step + 1, e))?,
+                crop_x,
+                crop_y,
+                global_selection_width,
+                global_selection_height,
+            )?;
             settle_attempts = attempt;
             if frames_are_stable(&next_frame, &candidate) {
                 next_frame = candidate;
