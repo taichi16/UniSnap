@@ -159,6 +159,29 @@ src-tauri/target/release/bundle/dmg/UniSnap_1.0.0_aarch64.dmg
 - GitHub 公開儲存庫只提交原始碼與必要設定，不提交 API Key、Token、個人錄影、截圖、建置輸出或本機快取。
 - 目前提供的是未簽章／未公證的 macOS 測試封裝；首次開啟可能出現 macOS 安全性警告。
 
+## 整理版架構
+
+整理版維持 macOS 專案與 Windows 專案分離，並將原生程式依責任拆分：
+
+- `capture*`：截圖命令、螢幕模式、輸出與控制視窗。
+- `scroll_*`：長截圖目標判斷、捲動輸入、影格對齊、固定區域遮罩與拼接。
+- `record*`：錄影工作階段、影格來源、裁切、H.264／MP4、音訊與完成收尾。
+- `editor_*` 與 `pin_windows`：圖片編輯視窗及置頂圖片視窗狀態。
+- `image_data` 與 `capture_output`：PNG／JPEG／Data URL 等影像輸出共用邏輯。
+
+入口檔只負責 Tauri 狀態、快捷鍵、Tray 選單與 command registration；平台差異集中在 macOS ScreenCaptureKit、CoreGraphics 與音訊橋接模組。
+
+## 整理版驗證
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets --no-default-features
+cargo clippy --manifest-path src-tauri/Cargo.toml --lib --no-default-features -- -D warnings
+npm run build
+npm run tauri build
+```
+
+自動化測試可驗證影像編碼、錄影裁切、長截圖位移／拼接與 MP4 寫入；多螢幕選擇、動態頁面長截圖、文字拖曳及剪貼簿仍需在實際 macOS 桌面環境驗收。
+
 ## 目前範圍與後續方向
 
 - 目前主要驗證與封裝平台為 macOS Apple Silicon。
