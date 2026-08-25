@@ -27,19 +27,19 @@ pub fn start_audio_capture() -> Result<AudioCapture, String> {
     let samples = Arc::new(Mutex::new(Vec::<f32>::new()));
     let target = Arc::clone(&samples);
     let err_fn = |error| eprintln!("[record] 麥克風串流錯誤：{error}");
-    let stream_config: cpal::StreamConfig = config.clone().into();
+    let stream_config: cpal::StreamConfig = config.into();
     let stream = match config.sample_format() {
         SampleFormat::F32 => device.build_input_stream(
-            stream_config.clone(), move |data: &[f32], _| append_f32(data, &target), err_fn, None,
+            stream_config, move |data: &[f32], _| append_f32(data, &target), err_fn, None,
         ),
         SampleFormat::I16 => device.build_input_stream(
-            stream_config.clone(), move |data: &[i16], _| append_i16(data, &target), err_fn, None,
+            stream_config, move |data: &[i16], _| append_i16(data, &target), err_fn, None,
         ),
         SampleFormat::I32 => device.build_input_stream(
-            stream_config.clone(), move |data: &[i32], _| append_i32(data, &target), err_fn, None,
+            stream_config, move |data: &[i32], _| append_i32(data, &target), err_fn, None,
         ),
         SampleFormat::U8 => device.build_input_stream(
-            stream_config.clone(), move |data: &[u8], _| append_u8(data, &target), err_fn, None,
+            stream_config, move |data: &[u8], _| append_u8(data, &target), err_fn, None,
         ),
         format => return Err(format!("麥克風格式 {format:?} 尚未支援")),
     }

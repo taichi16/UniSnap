@@ -53,13 +53,7 @@ mod dirs {
             .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
     }
     pub fn picture_dir() -> Option<PathBuf> {
-        home_dir().map(|h| {
-            if cfg!(target_os = "macos") {
-                h.join("Pictures")
-            } else {
-                h.join("Pictures")
-            }
-        })
+        home_dir().map(|h| h.join("Pictures"))
     }
 }
 

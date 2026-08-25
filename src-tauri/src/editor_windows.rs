@@ -65,7 +65,7 @@ pub fn open_image_in_main_editor(app: tauri::AppHandle) -> Result<(), String> {
             let scale = monitor.scale_factor();
             let fit = ((monitor.size().width as f64 / scale * 0.86) / image.width as f64).min((monitor.size().height as f64 / scale * 0.78) / image.height as f64).min(1.0);
             main.set_size(tauri::Size::Logical(tauri::LogicalSize::new((image.width as f64 * fit).max(640.0), (image.height as f64 * fit).max(480.0)))).map_err(|e| format!("無法調整編輯視窗：{e}"))?;
-            main.eval(&format!("window.location.hash = '#/capture?label={label}&mode=edit-main';")).map_err(|e| format!("無法開啟圖片編輯器：{e}"))?;
+            main.eval(format!("window.location.hash = '#/capture?label={label}&mode=edit-main';")).map_err(|e| format!("無法開啟圖片編輯器：{e}"))?;
             main.show().map_err(|e| format!("無法顯示編輯視窗：{e}"))?;
             main.set_focus().map_err(|e| format!("無法聚焦編輯視窗：{e}"))?;
             eprintln!("[capture] main_editor ready label={} size={}x{}", label, image.width, image.height);

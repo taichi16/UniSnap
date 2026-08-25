@@ -55,7 +55,7 @@ pub fn encode_requested_image(
         .to_rgb8();
     let mut output = Vec::new();
     let mut encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality as u8);
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
     encoder
         .encode(
             rgb.as_raw(),

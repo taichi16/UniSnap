@@ -129,7 +129,7 @@ pub fn run() {
         .setup(|app| {
             let settings = config::load_config(app.handle().clone())
                 .map_err(|e| format!("載入快捷鍵設定失敗：{e}"))?;
-            apply_global_shortcuts(app.handle(), &settings).map_err(|e| format!("{e}"))?;
+            apply_global_shortcuts(app.handle(), &settings).map_err(|e| e.to_string())?;
 
             // Setup Tray Icon & Menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};

@@ -135,7 +135,7 @@ pub fn start_recording(
                 height: crop.height,
             };
             let _ = ready_tx.send(Ok(started));
-            let encoded = encode_recording(
+            encode_recording(
                 first_frame,
                 FrameSource::Native { recorder, receiver },
                 crop,
@@ -143,8 +143,7 @@ pub fn start_recording(
                 worker_path,
                 worker_stop,
                 audio,
-            );
-            encoded
+            )
         })();
         if let Err(error) = &result {
             let _ = ready_tx.send(Err(error.clone()));
@@ -200,7 +199,6 @@ pub fn stop_recording(state: tauri::State<'_, RecordingState>) -> Result<Recordi
         result
             .as_ref()
             .map(|r| (&r.path, r.frame_count))
-            .map_err(|e| e)
     );
     result
 }
