@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::RgbaImage;
 use tauri::Emitter;
 use crate::scroll_matching::{find_scroll_shift, find_scroll_shift_near, frames_are_stable};
@@ -7,6 +6,7 @@ use crate::scroll_target::{classify_scroll_target, ScrollCaptureStrategy};
 use crate::scroll_input::ScrollController;
 use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
+use crate::capture_output::encode_png_data_url;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -232,17 +232,7 @@ pub fn auto_scroll_capture_window(
                 // Keep the initial frame instead of reporting a failed long
                 // screenshot; the user still receives the selected window.
                 if frames.len() == 1 {
-                    let mut buffer = Vec::new();
-                    first_frame
-                        .write_to(
-                            &mut std::io::Cursor::new(&mut buffer),
-                            image::ImageFormat::Png,
-                        )
-                        .map_err(|e| format!("Encode error: {}", e))?;
-                    return Ok(format!(
-                        "data:image/png;base64,{}",
-                        STANDARD.encode(&buffer)
-                    ));
+                    return encode_png_data_url(&first_frame);
                 }
                 return Err(format!(
                     "第 {} 次捲動後無法可靠比對影像；已停止以避免產生缺段截圖",
