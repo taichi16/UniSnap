@@ -24,7 +24,7 @@ use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
 use crate::recording_finalize::finalize_mp4;
 use crate::recording_timing::next_timed_frame;
 use crate::recording_audio_writer::write_microphone_track;
-use crate::recording_video_writer::{write_video_sample, PendingVideoSample};
+use crate::recording_video_writer::{flush_pending_sample, PendingVideoSample};
 use crate::scroll_trigger::trigger_scroll_capture as trigger_scroll_capture_impl;
 use tauri::AppHandle;
 use xcap::{Frame, Monitor};
@@ -275,18 +275,13 @@ fn encode_recording(
             } else {
                 recording_started_at.elapsed().as_millis() as u64
             };
-            if let Some((previous_timestamp, previous_sync, previous_bytes)) = pending_sample.take()
-            {
+            if let Some((previous_timestamp, _, _)) = pending_sample.as_ref() {
                 let duration = timestamp
-                    .saturating_sub(previous_timestamp)
+                    .saturating_sub(*previous_timestamp)
                     .clamp(1, u32::MAX as u64) as u32;
-                write_video_sample(
-                    &mut writer,
-                    (previous_timestamp, previous_sync, previous_bytes),
-                    duration,
-                    false,
-                )?;
-                frame_count += 1;
+                if flush_pending_sample(&mut writer, &mut pending_sample, duration, false)? {
+                    frame_count += 1;
+                }
             }
             pending_sample = Some((
                 timestamp,
@@ -295,14 +290,15 @@ fn encode_recording(
             ));
         }
     }
-    if let Some((timestamp, is_sync, bytes)) = pending_sample.take() {
+    if let Some((timestamp, _, _)) = pending_sample.as_ref() {
         let stopped_at = recording_started_at.elapsed().as_millis() as u64;
         let duration = stopped_at
-            .saturating_sub(timestamp)
+            .saturating_sub(*timestamp)
             .max(frame_duration as u64)
             .clamp(1, u32::MAX as u64) as u32;
-        write_video_sample(&mut writer, (timestamp, is_sync, bytes), duration, true)?;
-        frame_count += 1;
+        if flush_pending_sample(&mut writer, &mut pending_sample, duration, true)? {
+            frame_count += 1;
+        }
     }
     if frame_count == 0 {
         let _ = fs::remove_file(&path);
