@@ -28,6 +28,7 @@ pub fn close_capture_windows(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn open_recording_control(
     app: tauri::AppHandle,
     monitor_index: usize,
@@ -77,6 +78,7 @@ pub fn open_recording_control(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn open_recording_start_control(
     app: tauri::AppHandle,
     monitor_index: usize,

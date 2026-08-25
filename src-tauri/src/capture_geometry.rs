@@ -7,6 +7,7 @@ pub struct CropBounds {
 }
 
 /// Converts a desktop-global work-area rectangle into image-local pixels.
+#[allow(clippy::too_many_arguments)]
 pub fn work_area_crop_bounds(
     monitor_x: i32,
     monitor_y: i32,

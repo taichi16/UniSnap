@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::record_types::ScrollConfig;
 
 #[cfg(target_os = "macos")]
+#[allow(clippy::duplicated_attributes)]
 #[link(name = "CoreGraphics", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {

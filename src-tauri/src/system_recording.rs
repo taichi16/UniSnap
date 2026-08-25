@@ -32,6 +32,7 @@ unsafe extern "C" {
     fn sck_stop_recording(error_buffer: *mut std::ffi::c_char, error_buffer_size: usize) -> bool;
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn start_system_recording(
     app: &AppHandle,
     state: &tauri::State<'_, RecordingState>,

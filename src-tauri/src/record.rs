@@ -31,6 +31,7 @@ use xcap::{Frame, Monitor};
 
 #[tauri::command]
 #[allow(unreachable_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn start_recording(
     app: AppHandle,
     state: tauri::State<'_, RecordingState>,
