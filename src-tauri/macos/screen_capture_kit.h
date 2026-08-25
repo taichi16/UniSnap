@@ -7,6 +7,7 @@
 // `error_buffer` receives a UTF-8 diagnostic on failure.
 bool sck_start_recording(
     unsigned long display_index,
+    double monitor_x, double monitor_y, double monitor_width, double monitor_height,
     double x, double y, double width, double height,
     double canvas_width, double canvas_height,
     unsigned int fps,

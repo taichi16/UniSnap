@@ -16,6 +16,10 @@ use crate::recording_output::recording_output_path;
 unsafe extern "C" {
     fn sck_start_recording(
         display_index: usize,
+        monitor_x: f64,
+        monitor_y: f64,
+        monitor_width: f64,
+        monitor_height: f64,
         x: f64,
         y: f64,
         width: f64,
@@ -61,6 +65,10 @@ pub fn start_system_recording(
     let _monitor = monitors
         .get(monitor_index)
         .ok_or_else(|| format!("找不到第 {} 個螢幕", monitor_index + 1))?;
+    let monitor_x = _monitor.position().x as f64;
+    let monitor_y = _monitor.position().y as f64;
+    let monitor_width = _monitor.size().width as f64;
+    let monitor_height = _monitor.size().height as f64;
     let path = recording_output_path(app)?;
     let path_c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|_| "錄影路徑含有無效字元".to_string())?;
@@ -68,6 +76,10 @@ pub fn start_system_recording(
     let started = unsafe {
         sck_start_recording(
             monitor_index,
+            monitor_x,
+            monitor_y,
+            monitor_width,
+            monitor_height,
             x as f64,
             y as f64,
             width as f64,

@@ -61,6 +61,7 @@ static void initialize_recorder_queue(void) {
 
 bool sck_start_recording(
     unsigned long display_index,
+    double monitor_x, double monitor_y, double monitor_width, double monitor_height,
     double x, double y, double width, double height,
     double canvas_width, double canvas_height,
     unsigned int fps,
@@ -97,25 +98,35 @@ bool sck_start_recording(
                 }
                 // Tauri and ScreenCaptureKit enumerate displays independently;
                 // their array indices are not stable across multi-display
-                // arrangements.  The capture WebView fills its target monitor,
-                // so match its logical canvas size to SCDisplay instead.
+                // arrangements.  Width/height alone are also ambiguous when
+                // two displays share the same resolution. Match the physical
+                // monitor bounds first, using the index only as a last resort.
                 CGFloat overlayWidth = MAX((CGFloat)canvas_width, 1.0);
                 CGFloat overlayHeight = MAX((CGFloat)canvas_height, 1.0);
                 NSUInteger selectedDisplayIndex = MIN(display_index, content.displays.count - 1);
                 CGFloat bestScore = CGFLOAT_MAX;
                 for (NSUInteger index = 0; index < content.displays.count; index++) {
                     SCDisplay *candidate = content.displays[index];
-                    CGFloat score = fabs((CGFloat)candidate.width - overlayWidth)
-                        + fabs((CGFloat)candidate.height - overlayHeight);
-                    // Preserve the requested index only for an exact tie.
-                    if (score < bestScore || (score == bestScore && index == display_index)) {
+                    CGRect bounds = CGDisplayBounds(candidate.displayID);
+                    CGFloat sizeScore = fabs((CGFloat)candidate.width - (CGFloat)monitor_width)
+                        + fabs((CGFloat)candidate.height - (CGFloat)monitor_height);
+                    CGFloat positionScore = fabs(bounds.origin.x - (CGFloat)monitor_x)
+                        + fabs(bounds.origin.y - (CGFloat)monitor_y);
+                    // Position is the identity signal. Keep size as a tie
+                    // breaker because Tauri and Quartz may differ by scale.
+                    CGFloat score = positionScore * 1000.0 + sizeScore;
+                    if (score < bestScore) {
                         bestScore = score;
                         selectedDisplayIndex = index;
                     }
                 }
                 SCDisplay *display = content.displays[selectedDisplayIndex];
-                fprintf(stderr, "[sck] display_match requested=%lu selected=%lu overlay=%.0fx%.0f score=%.1f candidates=",
-                    display_index, (unsigned long)selectedDisplayIndex, overlayWidth, overlayHeight, bestScore);
+                CGRect selectedBounds = CGDisplayBounds(display.displayID);
+                fprintf(stderr, "[sck] display_match requested=%lu target=(%.0f,%.0f %.0fx%.0f) selected=%lu selected_id=%u bounds=(%.0f,%.0f %.0fx%.0f) overlay=%.0fx%.0f score=%.1f candidates=",
+                    display_index, monitor_x, monitor_y, monitor_width, monitor_height,
+                    (unsigned long)selectedDisplayIndex, display.displayID,
+                    selectedBounds.origin.x, selectedBounds.origin.y, selectedBounds.size.width, selectedBounds.size.height,
+                    overlayWidth, overlayHeight, bestScore);
                 for (NSUInteger index = 0; index < content.displays.count; index++) {
                     SCDisplay *candidate = content.displays[index];
                     fprintf(stderr, "%s%lux%lu", index == 0 ? "" : ",", (unsigned long)candidate.width, (unsigned long)candidate.height);
