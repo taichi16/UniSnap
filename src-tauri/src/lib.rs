@@ -1,48 +1,47 @@
-mod capture;
-mod capture_output;
-mod capture_geometry;
-mod capture_types;
 mod audio_capture;
+mod capture;
+mod capture_controls;
+mod capture_geometry;
+mod capture_io;
+mod capture_modes;
+mod capture_output;
+mod capture_overlay;
+mod capture_types;
 mod config;
 mod editor_image;
+mod editor_windows;
 mod frame_source;
 mod h264_sample;
-mod mp4_config;
 mod image_data;
+mod monitor_capture;
+mod monitor_resolution;
+mod mp4_config;
+mod pin_windows;
 mod record;
-mod recording_crop;
+mod record_types;
 mod recording_audio;
 mod recording_audio_writer;
+mod recording_crop;
 mod recording_encoder_init;
 mod recording_finalize;
+mod recording_output;
 mod recording_timing;
 mod recording_tracks;
 mod recording_video_writer;
-mod recording_output;
-mod record_types;
-mod scroll_matching;
-mod scroll_input;
 mod scroll_composite;
+mod scroll_input;
 mod scroll_masks;
+mod scroll_matching;
 mod scroll_target;
 mod scroll_target_window;
-mod monitor_resolution;
 mod scroll_trigger;
 mod system_recording;
-mod capture_controls;
-mod monitor_capture;
-mod editor_windows;
-mod capture_io;
-mod capture_modes;
-mod capture_overlay;
 
-use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-// State to share base64 images with dynamically created pin windows
-pub struct PinnedImageState(pub Mutex<HashMap<String, String>>);
+pub use pin_windows::PinnedImageState;
 
 /// Register shortcuts at the native application layer. This deliberately does
 /// not depend on a particular WebView being focused or even mounted.
@@ -62,7 +61,7 @@ pub(crate) fn apply_global_shortcuts(
                 if event.state == ShortcutState::Pressed {
                     let handle = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        let state = handle.state::<PinnedImageState>();
+                        let state = handle.state::<pin_windows::PinnedImageState>();
                         let _ = crate::capture_overlay::trigger_screenshot(
                             handle.clone(),
                             state.clone(),
@@ -82,7 +81,7 @@ pub(crate) fn apply_global_shortcuts(
                 if event.state == ShortcutState::Pressed {
                     let handle = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        let state = handle.state::<PinnedImageState>();
+                        let state = handle.state::<pin_windows::PinnedImageState>();
                         let _ = crate::capture_overlay::trigger_screenshot(
                             handle.clone(),
                             state.clone(),
@@ -117,87 +116,10 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-#[tauri::command]
-fn pin_screenshot(
-    app: AppHandle,
-    state: tauri::State<'_, PinnedImageState>,
-    image_base64: String,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<String, String> {
-    // Generate a unique label using timestamp and a counter
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let label = format!("pin_{}", timestamp);
-
-    // Store the image in global state
-    {
-        let mut map = state.0.lock().unwrap();
-        map.insert(label.clone(), image_base64);
-    }
-
-    // Determine the HTML URL path (loads the main index.html with a query param)
-    // The React router or hash routing will load the Pin component
-    let window_url = WebviewUrl::App(format!("index.html#/pin?label={}", label).parse().unwrap());
-
-    // Create a new borderless, always-on-top, draggable window
-    let win_builder = WebviewWindowBuilder::new(&app, &label, window_url)
-        .title("Pinned Screenshot")
-        .decorations(false)
-        .always_on_top(true)
-        .transparent(true)
-        .resizable(true)
-        .inner_size(width as f64, height as f64)
-        .position(x as f64, y as f64);
-
-    win_builder
-        .build()
-        .map_err(|e| format!("Failed to build pinned window: {}", e))?;
-
-    Ok(label)
-}
-
-#[tauri::command]
-fn get_pinned_image(
-    state: tauri::State<'_, PinnedImageState>,
-    label: String,
-) -> Result<String, String> {
-    let map = state.0.lock().unwrap();
-    map.get(&label)
-        .cloned()
-        .ok_or_else(|| "Image not found".to_string())
-}
-
-#[tauri::command]
-fn unpin_screenshot(
-    app: AppHandle,
-    state: tauri::State<'_, PinnedImageState>,
-    label: String,
-) -> Result<(), String> {
-    // Remove image from state
-    {
-        let mut map = state.0.lock().unwrap();
-        map.remove(&label);
-    }
-
-    // Close the corresponding window if it exists
-    if let Some(window) = app.get_webview_window(&label) {
-        window
-            .close()
-            .map_err(|e| format!("Failed to close window: {}", e))?;
-    }
-
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(PinnedImageState(Mutex::new(HashMap::new())))
+        .manage(pin_windows::PinnedImageState(Default::default()))
         .manage(record::RecordingState(Mutex::new(None)))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
@@ -206,8 +128,7 @@ pub fn run() {
         .setup(|app| {
             let settings = config::load_config(app.handle().clone())
                 .map_err(|e| format!("載入快捷鍵設定失敗：{e}"))?;
-            apply_global_shortcuts(app.handle(), &settings)
-                .map_err(|e| format!("{e}"))?;
+            apply_global_shortcuts(app.handle(), &settings).map_err(|e| format!("{e}"))?;
 
             // Setup Tray Icon & Menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -232,7 +153,7 @@ pub fn run() {
                     "screenshot" => {
                         let app_handle = app.clone();
                         tauri::async_runtime::spawn(async move {
-                            let state = app_handle.state::<crate::PinnedImageState>();
+                            let state = app_handle.state::<crate::pin_windows::PinnedImageState>();
                             let _ = crate::capture_overlay::trigger_screenshot(
                                 app_handle.clone(),
                                 state.clone(),
@@ -283,9 +204,9 @@ pub fn run() {
             record::trigger_scroll_capture,
             capture::auto_scroll_capture_window,
             capture::cancel_scroll_capture,
-            pin_screenshot,
-            get_pinned_image,
-            unpin_screenshot
+            pin_windows::pin_screenshot,
+            pin_windows::get_pinned_image,
+            pin_windows::unpin_screenshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
