@@ -2,6 +2,8 @@
 
 UniSnap 是一套以 macOS 為目前主要目標的螢幕截圖、長截圖、圖片編輯與螢幕錄影工具。版本：**V 1.0**。
 
+整理版的架構與錯誤修正記錄請參閱：[REFACTOR_NOTES.md](REFACTOR_NOTES.md)
+
 本專案使用 Tauri 建立桌面應用程式，前端採 React + TypeScript，原生功能採 Rust，並整合 macOS ScreenCaptureKit、xcap、OpenH264 與 AAC 音訊處理。
 
 ## 主要功能
