@@ -42,7 +42,7 @@ export function useCopyScreenshot(
       });
       await invoke("copy_screenshot_to_clipboard", { base64Image: base64 });
       console.debug("[clipboard-ui] copy command succeeded");
-      showToast("已複製截圖到剪貼簿！可直接貼上使用 (Cmd+V)");
+      showToast("已複製截圖到剪貼簿！可直接貼上使用 (Ctrl+V)");
     } catch (err) {
       console.error("Copy error:", err);
       showToast(`複製到剪貼簿失敗：${String(err)}`);

@@ -17,7 +17,7 @@ fn strip_start_code(nal: &[u8]) -> &[u8] {
     }
 }
 
-/// Converts OpenH264's Annex-B layers to the length-prefixed MP4 sample form.
+/// 將 OpenH264 的 Annex-B 圖層轉換為 MP4 使用的 length-prefixed sample。
 pub fn extract_h264_sample(encoded: &EncodedBitStream<'_>) -> Result<H264Sample, String> {
     let mut sps = None;
     let mut pps = None;
@@ -39,5 +39,10 @@ pub fn extract_h264_sample(encoded: &EncodedBitStream<'_>) -> Result<H264Sample,
             }
         }
     }
-    Ok(H264Sample { frame_type: encoded.frame_type(), sps, pps, bytes })
+    Ok(H264Sample {
+        frame_type: encoded.frame_type(),
+        sps,
+        pps,
+        bytes,
+    })
 }

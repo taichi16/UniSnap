@@ -23,9 +23,8 @@ pub fn fixed_row_mask(before: &RgbaImage, after: &RgbaImage) -> Vec<bool> {
         }
         let mean = sum / samples.max(1) as f64;
         let variance = sum_sq / samples.max(1) as f64 - mean * mean;
-        candidates[y as usize] = samples > 0
-            && (difference as f64 / (samples * 3) as f64) < 4.0
-            && variance > 80.0;
+        candidates[y as usize] =
+            samples > 0 && (difference as f64 / (samples * 3) as f64) < 4.0 && variance > 80.0;
     }
     contiguous_mask(candidates)
 }
@@ -53,9 +52,8 @@ pub fn fixed_column_mask(before: &RgbaImage, after: &RgbaImage) -> Vec<bool> {
         }
         let mean = sum / samples.max(1) as f64;
         let variance = sum_sq / samples.max(1) as f64 - mean * mean;
-        candidates[x as usize] = samples > 0
-            && (difference as f64 / (samples * 3) as f64) < 4.0
-            && variance > 80.0;
+        candidates[x as usize] =
+            samples > 0 && (difference as f64 / (samples * 3) as f64) < 4.0 && variance > 80.0;
     }
     contiguous_mask(candidates)
 }

@@ -13,6 +13,7 @@ interface AppConfig {
   jpg_quality: number;
   auto_copy_to_clipboard: boolean;
   theme: string;
+  close_to_tray: boolean;
 }
 
 interface MonitorInfo {
@@ -57,6 +58,7 @@ export default function MainWindow() {
     jpg_quality: 90,
     auto_copy_to_clipboard: true,
     theme: "dark",
+    close_to_tray: true,
   });
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -210,7 +212,7 @@ export default function MainWindow() {
       const msg = String(err);
       if (msg.includes("permission") || msg.includes("denied") || msg.includes("access")) {
         setScreenPermissionError(true);
-        showToast("⚠️ 需要螢幕錄製權限！請至系統設定 > 隱私權 > 螢幕錄製 開啟授權");
+        showToast("⚠️ 需要螢幕擷取權限！請確認 Windows 已允許螢幕擷取");
       } else {
         showToast(`操作失敗：${msg.slice(0, 60)}`);
       }
@@ -361,7 +363,7 @@ export default function MainWindow() {
               <p><strong>圖片編輯：</strong>按「開啟圖片」載入既有圖片；使用裁切框調整範圍，或按擴增畫布加入四周空白，再搭配標註工具編修。</p>
               <p><strong>截圖：</strong>選擇矩形截圖、全螢幕或工作區，再拖曳選取範圍。</p>
               <p><strong>長截圖：</strong>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；若畫面有多個捲動區域，只選主要內容區。開始後請不要移動滑鼠或操作其他視窗，等待畫面完成捲動與拼接；截圖中若要中止請將滑鼠移開選取區域。</p>
-              <p><strong>錄影：</strong>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影。</p>
+              <p><strong>錄影：</strong>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影；系統聲音會擷取 Windows 預設輸出裝置。</p>
               <p><strong>儲存：</strong>在編輯工具列選擇 PNG 或 JPG，再按下載圖示另存新檔。</p>
               <p><strong>取消：</strong>一般截圖可按 Esc；長截圖請按畫面上的「取消」按鈕；錄影請按浮動控制列的停止並存檔。</p>
             </div>}
@@ -376,7 +378,7 @@ export default function MainWindow() {
               <h3>UniSnap V 1.0</h3>
               <p>UniSnap 是一套跨平台的螢幕截圖、長截圖與螢幕錄影工具，從需求規劃、介面設計到多螢幕與媒體處理逐步整合完成。</p>
               <p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p>
-              <p><strong>平台整合：</strong>macOS ScreenCaptureKit、Windows 螢幕擷取架構。</p>
+              <p><strong>平台整合：</strong>Windows 螢幕擷取、剪貼簿與錄影架構。</p>
               <p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p>
               <p><strong>作者：</strong>YuJhao Wang</p>
               <p><strong>版本：</strong>V 1.0</p>
@@ -409,6 +411,17 @@ export default function MainWindow() {
               <label className="switch">
                 <input type="checkbox" checked={config.remember_save_directory}
                   onChange={(e) => saveSettings({ ...config, remember_save_directory: e.target.checked })} />
+                <span className="slider"></span>
+              </label>
+            </div>
+            <div className="toggle-group">
+              <div className="toggle-info">
+                <span className="toggle-label">關閉視窗時常駐系統匣</span>
+                <span className="toggle-desc">關閉主視窗後保留快捷鍵與背景服務；從系統匣選單「結束」才會退出</span>
+              </div>
+              <label className="switch">
+                <input type="checkbox" checked={config.close_to_tray}
+                  onChange={(e) => saveSettings({ ...config, close_to_tray: e.target.checked })} />
                 <span className="slider"></span>
               </label>
             </div>
@@ -483,9 +496,8 @@ export default function MainWindow() {
 
       {screenPermissionError && (
         <div className="permission-banner">
-          ⚠️ 需要<strong>螢幕錄製權限</strong>。請前往
-          <strong>系統設定 &gt; 隱私權與安全性 &gt; 螢幕錄製</strong>
-          ，勾選本應用程式後重新啟動。
+          ⚠️ 需要<strong>螢幕擷取權限</strong>。請確認 Windows 已允許本應用程式擷取螢幕，
+          並關閉可能阻擋桌面擷取的安全性或隱私工具後重新啟動。
         </div>
       )}
       {statusMessage && <div className="toast">{statusMessage}</div>}

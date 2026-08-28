@@ -10,7 +10,6 @@ export function useScrollCaptureEvents(
   showToast: (message: string) => void,
 ) {
   useEffect(() => {
-    if (mode === "record") return;
     let unlisten: (() => void) | undefined;
     listen("global-escape", async () => {
       if (isScrollingModeRef.current) {

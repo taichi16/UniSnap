@@ -1,3 +1,4 @@
+use crate::platform::windows::{DEFAULT_RECORDING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -13,9 +14,17 @@ pub struct AppConfig {
     pub auto_copy_to_clipboard: bool,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_close_to_tray")]
+    pub close_to_tray: bool,
 }
 
-fn default_theme() -> String { "dark".to_string() }
+fn default_theme() -> String {
+    "dark".to_string()
+}
+
+fn default_close_to_tray() -> bool {
+    true
+}
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -25,21 +34,14 @@ impl Default for AppConfig {
             .join("Screenshots");
 
         Self {
-            shortcut_screenshot: if cfg!(target_os = "macos") {
-                "Command+Shift+A".to_string()
-            } else {
-                "Alt+A".to_string()
-            },
-            shortcut_recording: if cfg!(target_os = "macos") {
-                "Command+Shift+R".to_string()
-            } else {
-                "Alt+R".to_string()
-            },
+            shortcut_screenshot: DEFAULT_SCREENSHOT_SHORTCUT.to_string(),
+            shortcut_recording: DEFAULT_RECORDING_SHORTCUT.to_string(),
             save_directory: default_dir.to_string_lossy().to_string(),
             remember_save_directory: true,
             jpg_quality: 90,
             auto_copy_to_clipboard: true,
             theme: default_theme(),
+            close_to_tray: default_close_to_tray(),
         }
     }
 }
@@ -92,11 +94,15 @@ pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let path = get_config_path(&app)?;
+    let previous = load_config(app.clone())?;
+    // Do not persist a shortcut Windows rejected because another application
+    // already owns it. Restore the old bindings before returning the error.
+    if let Err(error) = crate::apply_global_shortcuts(&app, &config) {
+        let _ = crate::apply_global_shortcuts(&app, &previous);
+        return Err(error);
+    }
     let json =
         serde_json::to_string_pretty(&config).map_err(|e| format!("Serialize error: {}", e))?;
     fs::write(&path, json).map_err(|e| format!("Write config file error: {}", e))?;
-    // Rebind native shortcuts in the same save operation. This avoids relying
-    // on a frontend event or a focused WebView to apply the new keys.
-    crate::apply_global_shortcuts(&app, &config)?;
     Ok(())
 }

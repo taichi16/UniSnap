@@ -1,9 +1,7 @@
 {
   "identifier": "desktop-capability",
   "platforms": [
-    "macOS",
-    "windows",
-    "linux"
+    "windows"
   ],
   "windows": [
     "*"
@@ -26,6 +24,11 @@
     "core:window:allow-set-decorations",
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
+    "core:window:allow-set-background-color",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-image",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
     "allow-app-commands"
   ]
 }
