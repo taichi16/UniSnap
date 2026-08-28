@@ -63,17 +63,15 @@ pub fn find_scroll_shift(img1: &RgbaImage, img2: &RgbaImage) -> Option<u32> {
     (difference < 28.0 && difference + 1.0 < zero_difference).then_some(shift)
 }
 
-pub fn find_scroll_shift_near(
-    img1: &RgbaImage,
-    img2: &RgbaImage,
-    expected: u32,
-) -> Option<u32> {
+pub fn find_scroll_shift_near(img1: &RgbaImage, img2: &RgbaImage, expected: u32) -> Option<u32> {
     let zero_difference = sampled_difference(img1, img2, 0)?;
     if zero_difference < 2.5 {
         return None;
     }
     let min_shift = expected.saturating_sub(48).max(1);
-    let max_shift = expected.saturating_add(48).min(img1.height().saturating_sub(25));
+    let max_shift = expected
+        .saturating_add(48)
+        .min(img1.height().saturating_sub(25));
     let mut best = None::<(u32, f64)>;
     for shift in min_shift..=max_shift {
         if let Some(difference) = sampled_difference(img1, img2, shift) {

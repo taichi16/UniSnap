@@ -26,7 +26,9 @@ export function usePinnedImage(
   useEffect(() => {
     async function fetchScreenshot() {
       try {
+        console.log("[usePinnedImage] fetching label:", label);
         const data = await invoke<string>("get_pinned_image", { label });
+        console.log("[usePinnedImage] got data length:", data?.length ?? 0);
         setScreenshotData(data);
         const img = new Image();
         img.onload = () => {
@@ -39,11 +41,14 @@ export function usePinnedImage(
             setCropRect({ x: 0, y: 0, w: img.width, h: img.height });
           }
         };
+        img.onerror = (e) => {
+          console.error("[usePinnedImage] image failed to load from data URL:", e);
+        };
         // Register before assigning src so cached local images still initialise
         // the editor selection and toolbar state correctly.
         img.src = data;
       } catch (err) {
-        console.error("Failed to load screenshot:", err);
+        console.error("[usePinnedImage] get_pinned_image failed for label:", label, "error:", err);
       }
     }
     if (label) fetchScreenshot();

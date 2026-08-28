@@ -54,8 +54,7 @@ pub fn encode_requested_image(
         .map_err(|error| format!("無法轉換 JPG：{error}"))?
         .to_rgb8();
     let mut output = Vec::new();
-    let mut encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
     encoder
         .encode(
             rgb.as_raw(),

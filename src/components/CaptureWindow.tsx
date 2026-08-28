@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { getCanvasOverlayPosition } from "../editor/geometry";
@@ -160,8 +160,6 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     showToast,
   });
 
-  // The capture window is hidden during scrolling, so Escape is routed
-  // through the main window's global shortcut handler.
   useScrollCaptureEvents(
     mode,
     isScrollingModeRef,
@@ -169,6 +167,17 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     cancelScrollFlow,
     showToast,
   );
+
+  // Immediate capture-phase Escape listener to guarantee window close
+  useEffect(() => {
+    const handleKeyDownCapture = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        void cancelScrollFlow();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDownCapture, true);
+    return () => window.removeEventListener("keydown", handleKeyDownCapture, true);
+  }, [cancelScrollFlow]);
 
   useCaptureWindowLifecycle(cropRect);
 
@@ -267,7 +276,20 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
   return (
     <div
-      className={`capture-container${isScrollableEditor ? " editor-main" : ""}`}
+      className={`capture-container ${isScrollableEditor ? "editor-main" : ""}`}
+      style={
+        screenshotData && !imageLoaded
+          ? {
+              backgroundImage: `url(${screenshotData})`,
+              backgroundSize: "100% 100%",
+              backgroundRepeat: "no-repeat",
+            }
+          : undefined
+      }
+      onContextMenu={(e) => {
+        e.preventDefault();
+        void cancelScrollFlow();
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -283,6 +305,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       <ScrollCaptureControls
         showGuidance={mode === "scroll" && !isScrollingMode && !isStitching && (!cropRect || cropRect.w < 80 || cropRect.h < 80)}
         hasSelection={mode === "scroll" && Boolean(cropRect) && !isScrollingMode && !isStitching}
+        isComplete={isStitchedResult}
         onStart={() => void handleWindowScrollCapture()}
         onReset={() => { setCropRect(null); setIsSelecting(false); }}
         onCancel={() => void cancelScrollFlow()}
@@ -367,7 +390,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* Recording start control: rendered inside the selected monitor's
           overlay, not in a second native window. This keeps it visible on
-          every monitor and at every macOS display scale. */}
+          every monitor and at every Windows display scale. */}
       {cropRect && isRecordMode && (
         <RecordingSelectionControls
           recordAudio={recordAudio}

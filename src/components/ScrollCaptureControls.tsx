@@ -1,12 +1,17 @@
 interface ScrollCaptureControlsProps {
   showGuidance: boolean;
   hasSelection: boolean;
+  isComplete: boolean;
   onStart: () => void;
   onReset: () => void;
   onCancel: () => void;
 }
 
-export default function ScrollCaptureControls({ showGuidance, hasSelection, onStart, onReset, onCancel }: ScrollCaptureControlsProps) {
+export default function ScrollCaptureControls({ showGuidance, hasSelection, isComplete, onStart, onReset, onCancel }: ScrollCaptureControlsProps) {
+  // Once the stitched image is open, the regular editor toolbar owns the
+  // screen. Keeping the selection toolbar mounted underneath it was confusing
+  // and made the two controls overlap.
+  if (isComplete) return null;
   if (showGuidance) {
     return (
       <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "rgba(18, 18, 24, 0.94)", border: "1px solid var(--accent-color)", borderRadius: 24, padding: "10px 24px", color: "#fff", fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 35px rgba(0,0,0,0.6)", pointerEvents: "auto", display: "flex", alignItems: "center", gap: 8 }} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>

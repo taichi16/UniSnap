@@ -2,11 +2,20 @@
 identifier = "allow-app-commands"
 description = "Allows all custom commands defined in the application"
 commands.allow = [
+  "greet",
+  "log_from_frontend",
+  "list_monitors",
   "capture_screens",
   "trigger_screenshot",
+  "open_image_editor",
+  "open_image_editor_data",
+  "open_recording_control",
+  "open_recording_start_control",
   "close_capture_windows",
   "save_and_copy_screenshot",
   "copy_screenshot_to_clipboard",
+  "inspect_saved_file",
+  "capture_screen_region",
   "capture_full_screen",
 
   "capture_work_area",

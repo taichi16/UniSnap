@@ -25,5 +25,10 @@ pub fn work_area_crop_bounds(
     }
     let width = work_width.min(image_width.saturating_sub(x));
     let height = work_height.min(image_height.saturating_sub(y));
-    (width > 0 && height > 0).then_some(CropBounds { x, y, width, height })
+    (width > 0 && height > 0).then_some(CropBounds {
+        x,
+        y,
+        width,
+        height,
+    })
 }
