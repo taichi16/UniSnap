@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
-export function useToastMessage(durationMs = 2000) {
+// Keep operational results visible long enough to read or select for reports.
+export function useToastMessage(durationMs = 8000) {
   const [message, setMessage] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
