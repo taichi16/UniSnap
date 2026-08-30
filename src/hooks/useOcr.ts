@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Tesseract from "tesseract.js";
 
@@ -16,8 +17,14 @@ export function useOcr(
     setOcrLoading(true);
     showToast("進行文字辨識中...");
     try {
-      const result = await Tesseract.recognize(base64, "chi_tra+eng");
-      const text = result.data.text || "未辨識到任何文字。";
+      let text: string;
+      try {
+        text = await invoke<string>("recognize_text_vision", { base64Image: base64 });
+      } catch (visionError) {
+        console.warn("Vision OCR unavailable, using Tesseract fallback:", visionError);
+        const result = await Tesseract.recognize(base64, "chi_tra+eng");
+        text = result.data.text || "未辨識到任何文字。";
+      }
       setOcrText(text);
       await writeText(text);
       showToast("文字辨識完成，已複製到剪貼簿");

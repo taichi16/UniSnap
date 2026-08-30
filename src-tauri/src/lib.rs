@@ -16,6 +16,7 @@ mod image_data;
 mod monitor_capture;
 mod monitor_resolution;
 mod mp4_config;
+mod ocr;
 mod pin_windows;
 mod record;
 mod record_types;
@@ -199,6 +200,7 @@ pub fn run() {
             capture_io::copy_screenshot_to_clipboard,
             capture_io::inspect_saved_file,
             capture_io::capture_screen_region,
+            ocr::recognize_text_vision,
             capture_modes::capture_full_screen,
             capture_modes::capture_work_area,
             config::load_config,

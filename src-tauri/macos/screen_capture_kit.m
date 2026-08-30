@@ -2,6 +2,8 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+#import <Vision/Vision.h>
+#import <ImageIO/ImageIO.h>
 
 #import "screen_capture_kit.h"
 
@@ -234,5 +236,39 @@ bool sck_stop_recording(char *error_buffer, size_t error_buffer_size) {
         active_recorder = nil;
     });
     if (failure != nil) { write_error(error_buffer, error_buffer_size, failure); return false; }
+    return true;
+}
+
+bool vision_ocr_png(const unsigned char *data, size_t data_len, char *output, size_t output_len) {
+    if (data == NULL || data_len == 0 || output == NULL || output_len == 0) return false;
+    if (!__builtin_available(macOS 13.0, *)) return false;
+
+    NSData *imageData = [NSData dataWithBytes:data length:data_len];
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
+    if (source == NULL) return false;
+    CGImageRef image = CGImageSourceCreateImageAtIndex(source, 0, NULL);
+    CFRelease(source);
+    if (image == NULL) return false;
+
+    __block NSError *requestError = nil;
+    VNRecognizeTextRequest *request = [[VNRecognizeTextRequest alloc] initWithCompletionHandler:
+        ^(VNRequest *completedRequest, NSError *error) {
+            requestError = error;
+        }];
+    request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
+    request.usesLanguageCorrection = YES;
+    request.recognitionLanguages = @[@"zh-Hant", @"en-US"];
+    VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCGImage:image options:@{}];
+    BOOL success = [handler performRequests:@[request] error:&requestError];
+    NSMutableString *text = [NSMutableString string];
+    if (success && requestError == nil) {
+        for (VNRecognizedTextObservation *observation in request.results) {
+            VNRecognizedText *candidate = [[observation topCandidates:1] firstObject];
+            if (candidate.string.length > 0) [text appendFormat:@"%@\n", candidate.string];
+        }
+    }
+    CGImageRelease(image);
+    if (!success || requestError != nil) return false;
+    snprintf(output, output_len, "%s", text.UTF8String ?: "");
     return true;
 }

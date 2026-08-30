@@ -24,6 +24,8 @@ fn build_screen_capture_kit_bridge() {
     println!("cargo:rustc-link-lib=static=screen_capture_kit");
     println!("cargo:rustc-link-lib=framework=ScreenCaptureKit");
     println!("cargo:rustc-link-lib=framework=AppKit");
+    println!("cargo:rustc-link-lib=framework=Vision");
+    println!("cargo:rustc-link-lib=framework=ImageIO");
     println!("cargo:rerun-if-changed=macos/screen_capture_kit.m");
     println!("cargo:rerun-if-changed=macos/screen_capture_kit.h");
 }

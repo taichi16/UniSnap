@@ -19,3 +19,11 @@ bool sck_start_recording(
 );
 
 bool sck_stop_recording(char *error_buffer, size_t error_buffer_size);
+
+// Performs on-device text recognition using macOS Vision.
+bool vision_ocr_png(
+    const unsigned char *data,
+    size_t data_len,
+    char *output,
+    size_t output_len
+);
