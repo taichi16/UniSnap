@@ -1,8 +1,9 @@
 # UniSnap
 
-UniSnap 是一套以 macOS 為目前主要目標的螢幕截圖、長截圖、圖片編輯與螢幕錄影工具。版本：**V 1.0**。
+UniSnap 是一套以 macOS 為目前主要目標的螢幕截圖、長截圖、圖片編輯與螢幕錄影工具。版本：**V 2.0**。
 
 整理版的架構與錯誤修正記錄請參閱：[REFACTOR_NOTES.md](REFACTOR_NOTES.md)
+v2 開發追蹤與尚未完成的驗收邊界請參閱：[V2_ROADMAP.md](V2_ROADMAP.md)
 
 本專案使用 Tauri 建立桌面應用程式，前端採 React + TypeScript，原生功能採 Rust，並整合 macOS ScreenCaptureKit、xcap、OpenH264 與 AAC 音訊處理。
 
@@ -93,7 +94,7 @@ macOS 首次使用錄影與音訊功能時，請在「系統設定 → 隱私權
 ### 第五階段：介面與發行
 
 - 加入 UniSnap 品牌名稱、日間／夜間模式、設定、使用說明與關於頁面。
-- 版本維持 `V 1.0`，macOS 應用程式內部版本值為 `1.0.0`。
+- v2 版本為 `V 2.0`，macOS 應用程式內部版本值為 `2.0.0`。
 - 建立 Apple Silicon macOS `.app` 與 `.dmg` 封裝。
 - 建立公開 GitHub 儲存庫供版本管理與後續維護。
 
@@ -150,7 +151,7 @@ npm run tauri build
 
 ```text
 src-tauri/target/release/bundle/macos/UniSnap.app
-src-tauri/target/release/bundle/dmg/UniSnap_1.0.0_aarch64.dmg
+src-tauri/target/release/bundle/dmg/UniSnap_2.0.0_aarch64.dmg
 ```
 
 ## 權限與安全注意事項
