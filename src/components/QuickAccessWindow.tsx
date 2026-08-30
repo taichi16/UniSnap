@@ -27,7 +27,11 @@ export default function QuickAccessWindow({ label }: { label: string }) {
     const mime = /\.jpe?g$/i.test(fileName) ? "image/jpeg" : "image/png";
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/uri-list", `${encodedPath}\n`);
-    event.dataTransfer.setData("text/plain", item.path);
+    // Do not publish the filesystem path as text: apps such as Pages then
+    // insert the path string instead of treating the drag as a file drop.
+    // Include the macOS file URL flavor as well as DownloadURL for apps that
+    // use the browser drag-and-drop contract.
+    event.dataTransfer.setData("public.file-url", encodedPath);
     event.dataTransfer.setData("DownloadURL", `${mime}:${fileName}:${encodedPath}`);
   };
 
