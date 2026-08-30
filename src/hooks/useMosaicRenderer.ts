@@ -19,8 +19,11 @@ export function useMosaicRenderer(imageRef: MutableRefObject<HTMLImageElement | 
       rw,
       rh,
       size,
-      window.innerWidth,
-      window.innerHeight,
+      // Long screenshots use a canvas larger than the viewport. Sampling
+      // against window dimensions shifts source pixels and can produce black
+      // blocks when the requested region falls outside the temporary canvas.
+      ctx.canvas.width,
+      ctx.canvas.height,
     );
   }, [imageRef]);
 }
