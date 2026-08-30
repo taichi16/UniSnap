@@ -110,7 +110,7 @@ macOS 首次使用錄影與音訊功能時，請在「系統設定 → 隱私權
 | 影像輸出 | PNG、JPG/JPEG |
 | 影片編碼 | OpenH264、MP4 |
 | 麥克風 | cpal、AAC 編碼 |
-| OCR | Tesseract.js |
+| OCR | macOS Vision（失敗時以 Tesseract.js fallback） |
 | AI 協作 | Antigravity IDE、ChatGPT |
 
 ## 開發環境

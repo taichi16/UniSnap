@@ -10,6 +10,7 @@
 - 加入長截圖 session metrics：擷取步數、穩定取樣次數、接受／拒絕影格數、對齊失敗次數、最終輸出高度與 session 經過時間
 - 加入影格尺寸與安全高度的集中驗證
 - 補上 session 與 metrics 的 Rust 單元測試
+- 加入 macOS Vision OCR command；前端保留 Tesseract.js fallback，避免原生 OCR 失敗時影響既有流程
 
 ## 進行中
 
@@ -73,3 +74,4 @@ v1 已改用全域座標與 ScreenCaptureKit bounds 配對；v2 會進一步把�
 - v2 目前沿用產品顯示版本 V 2.0 的開發目標，但在正式封裝前不提前宣稱 Release。
 - v1 與 v2 各自開發、各自測試、各自維護。
 - 任何從 Snapzy 借鏡的設計都需重新以 UniSnap 的 Tauri／Rust／macOS bridge 實作，不直接複製 Swift 原始碼。
+- 雲端 S3／R2 上傳暫不列入 v2 本階段範圍。
