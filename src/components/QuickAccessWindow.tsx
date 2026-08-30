@@ -25,6 +25,11 @@ export default function QuickAccessWindow({ label }: { label: string }) {
     const encodedPath = `file://${item.path.split(" ").join("%20")}`;
     const fileName = item.path.split(/[\\/]/).pop() || "Screenshot.png";
     const mime = /\.jpe?g$/i.test(fileName) ? "image/jpeg" : "image/png";
+    // Seed AppKit's native drag pasteboard before the WebView drag leaves the
+    // window. This is what Pages and other macOS apps consume for file drops.
+    void invoke("prepare_quick_access_drag", { path: item.path }).catch((error) => {
+      console.error("Native file drag preparation failed:", error);
+    });
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/uri-list", `${encodedPath}\n`);
     // Do not publish the filesystem path as text: apps such as Pages then

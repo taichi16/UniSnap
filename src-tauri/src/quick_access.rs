@@ -5,6 +5,11 @@ use std::sync::Mutex;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn prepare_file_drag(path: *const std::ffi::c_char, error_buffer: *mut std::ffi::c_char, error_buffer_size: usize) -> bool;
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuickAccessItem {
@@ -13,6 +18,26 @@ pub struct QuickAccessItem {
 }
 
 pub struct QuickAccessState(pub Mutex<HashMap<String, QuickAccessItem>>);
+
+#[tauri::command]
+pub fn prepare_quick_access_drag(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let c_path = std::ffi::CString::new(path).map_err(|_| "拖曳檔案路徑包含無效字元".to_string())?;
+        let mut error = vec![0_i8; 512];
+        let ok = unsafe { prepare_file_drag(c_path.as_ptr(), error.as_mut_ptr(), error.len()) };
+        if !ok {
+            let message = unsafe { std::ffi::CStr::from_ptr(error.as_ptr()) }.to_string_lossy().into_owned();
+            return Err(if message.is_empty() { "無法準備原生檔案拖曳".into() } else { message });
+        }
+        return Ok(());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        Err("原生檔案拖曳目前僅支援 macOS".into())
+    }
+}
 
 #[tauri::command]
 pub fn open_quick_access(

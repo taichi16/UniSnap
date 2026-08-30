@@ -217,7 +217,8 @@ pub fn run() {
             pin_windows::unpin_screenshot,
             quick_access::open_quick_access,
             quick_access::get_quick_access,
-            quick_access::close_quick_access
+            quick_access::close_quick_access,
+            quick_access::prepare_quick_access_drag
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
