@@ -281,8 +281,12 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
       />
 
       <ScrollCaptureControls
-        showGuidance={mode === "scroll" && !isScrollingMode && !isStitching && (!cropRect || cropRect.w < 80 || cropRect.h < 80)}
-        hasSelection={mode === "scroll" && Boolean(cropRect) && !isScrollingMode && !isStitching}
+        // Once stitching finishes the result is an editor surface.  The
+        // result canvas itself has a full-size cropRect, so checking only
+        // cropRect would incorrectly render the pre-capture controls again
+        // on top of the editing toolbar.
+        showGuidance={mode === "scroll" && !isStitchedResult && !isScrollingMode && !isStitching && (!cropRect || cropRect.w < 80 || cropRect.h < 80)}
+        hasSelection={mode === "scroll" && !isStitchedResult && Boolean(cropRect) && !isScrollingMode && !isStitching}
         onStart={() => void handleWindowScrollCapture()}
         onReset={() => { setCropRect(null); setIsSelecting(false); }}
         onCancel={() => void cancelScrollFlow()}
