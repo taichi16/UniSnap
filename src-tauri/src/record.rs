@@ -721,14 +721,9 @@ fn encode_recording_ffmpeg(
     audio: Option<AudioCapture>,
     system_audio: Option<SystemAudioCapture>,
 ) -> Result<RecordingResult, String> {
-    let ffmpeg = std::env::var_os("UNISNAP_FFMPEG")
-        .map(PathBuf::from)
-        .or_else(|| {
-            [PathBuf::from(r"K:\ffmpeg\bin\ffmpeg.exe"), PathBuf::from("ffmpeg.exe")]
-                .into_iter()
-                .find(|candidate| candidate.exists())
-        })
-        .ok_or("找不到 FFmpeg；請安裝 FFmpeg 或設定 UNISNAP_FFMPEG")?;
+    let ffmpeg = find_ffmpeg_binary().ok_or(
+        "找不到內建 FFmpeg；請重新安裝 UniSnap，或設定 UNISNAP_FFMPEG 指向 ffmpeg.exe",
+    )?;
     let size = format!("{}x{}", crop.width, crop.height);
     let video_path = path.with_extension("video.mp4");
     let mut child = Command::new(&ffmpeg)
@@ -787,6 +782,23 @@ fn encode_recording_ffmpeg(
         } else { std::fs::rename(&video_path, &path).map_err(|e| format!("完成影片輸出失敗：{e}"))?; }
     } else { std::fs::rename(&video_path, &path).map_err(|e| format!("完成影片輸出失敗：{e}"))?; }
     Ok(RecordingResult { path: path.to_string_lossy().into_owned(), frame_count, width: crop.width, height: crop.height })
+}
+
+#[cfg(target_os = "windows")]
+fn find_ffmpeg_binary() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = std::env::var_os("UNISNAP_FFMPEG") {
+        candidates.push(PathBuf::from(path));
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("resources").join("ffmpeg.exe"));
+            candidates.push(parent.join("ffmpeg.exe"));
+        }
+    }
+    candidates.push(PathBuf::from(r"K:\ffmpeg\bin\ffmpeg.exe"));
+    candidates.push(PathBuf::from("ffmpeg.exe"));
+    candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
 #[cfg(target_os = "windows")]
