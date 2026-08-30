@@ -18,6 +18,7 @@ mod monitor_resolution;
 mod mp4_config;
 mod ocr;
 mod pin_windows;
+mod quick_access;
 mod record;
 mod record_types;
 mod recording_audio;
@@ -125,6 +126,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .manage(pin_windows::PinnedImageState(Default::default()))
+        .manage(quick_access::QuickAccessState(Mutex::new(Default::default())))
         .manage(record::RecordingState(Mutex::new(None)))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
@@ -212,7 +214,10 @@ pub fn run() {
             capture::cancel_scroll_capture,
             pin_windows::pin_screenshot,
             pin_windows::get_pinned_image,
-            pin_windows::unpin_screenshot
+            pin_windows::unpin_screenshot,
+            quick_access::open_quick_access,
+            quick_access::get_quick_access,
+            quick_access::close_quick_access
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

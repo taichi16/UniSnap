@@ -4,6 +4,7 @@ import CaptureWindow from "./components/CaptureWindow";
 import PinWindow from "./components/PinWindow";
 import RecordingControl from "./components/RecordingControl";
 import RecordingStartControl from "./components/RecordingStartControl";
+import QuickAccessWindow from "./components/QuickAccessWindow";
 import "./App.css";
 
 export default function App() {
@@ -41,6 +42,10 @@ export default function App() {
 
   if (path === "/recording-start-control") {
     return <RecordingStartControl />;
+  }
+
+  if (path === "/quick-access") {
+    return <QuickAccessWindow label={params.get("label") || ""} />;
   }
 
   return <MainWindow />;

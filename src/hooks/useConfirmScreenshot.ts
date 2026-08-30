@@ -25,6 +25,7 @@ export function useConfirmScreenshot(
         savePath: null,
         autoCopy: true,
       });
+      await invoke("open_quick_access", { imageData: base64, path: savedPath });
       showToast(`已存檔且複製到剪貼簿\n路徑: ${savedPath}`);
       setTimeout(async () => { await closeEditor(); }, 800);
     } catch (err) {

@@ -34,6 +34,7 @@ export function useSaveScreenshot(
           savePath: filepath,
           autoCopy: false,
         });
+        await invoke("open_quick_access", { imageData: base64, path: filepath });
         showToast("圖片已儲存");
         setTimeout(async () => { await closeEditor(); }, 600);
       }

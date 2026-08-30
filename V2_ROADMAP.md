@@ -11,6 +11,7 @@
 - 加入影格尺寸與安全高度的集中驗證
 - 補上 session 與 metrics 的 Rust 單元測試
 - 加入 macOS Vision OCR command；前端保留 Tesseract.js fallback，避免原生 OCR 失敗時影響既有流程
+- 加入儲存後 Quick Access 懸浮卡片，提供縮圖、檔名與 Drag-to-App 檔案資料
 
 ## 進行中
 
