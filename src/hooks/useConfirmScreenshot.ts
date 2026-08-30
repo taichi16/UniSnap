@@ -47,7 +47,12 @@ export function useConfirmScreenshot(
       const status = copied ? "已複製到剪貼簿" : "剪貼簿複製失敗";
       const quickAccessStatus = quickAccessOpened ? "" : "；快速取用視窗開啟失敗";
       showToast(`已存檔，${status}${quickAccessStatus}\n路徑: ${savedPath}`);
-      setTimeout(async () => { await closeEditor(); }, 800);
+      // Keep the editor open when an optional follow-up action failed. The
+      // user must be able to read/copy the status and retry instead of having
+      // the capture window disappear together with the toast.
+      if (copied && quickAccessOpened) {
+        setTimeout(async () => { await closeEditor(); }, 800);
+      }
     } catch (err) {
       console.error("Confirm error:", err);
       showToast("存檔失敗");

@@ -34,16 +34,20 @@ export function useSaveScreenshot(
           savePath: filepath,
           autoCopy: false,
         });
+        let quickAccessOpened = true;
         try {
           await invoke("open_quick_access", { imageData: base64, path: filepath });
           showToast("圖片已儲存");
         } catch (error) {
+          quickAccessOpened = false;
           // The file is already persisted; report the optional Quick Access
           // failure separately instead of incorrectly saying save failed.
           console.error("Quick Access error after save:", error);
           showToast("圖片已儲存（快速取用視窗開啟失敗）");
         }
-        setTimeout(async () => { await closeEditor(); }, 600);
+        if (quickAccessOpened) {
+          setTimeout(async () => { await closeEditor(); }, 600);
+        }
       }
     } catch (err) {
       console.error("Save error:", err);
