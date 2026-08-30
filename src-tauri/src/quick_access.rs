@@ -21,10 +21,17 @@ pub fn open_quick_access(
     image_data: String,
     path: String,
 ) -> Result<String, String> {
+    eprintln!(
+        "[quick-access] request path={} image_chars={}",
+        path,
+        image_data.len()
+    );
     if !image_data.starts_with("data:image/") {
+        eprintln!("[quick-access] rejected invalid image data URL");
         return Err("快速取用圖片資料格式無效".into());
     }
     if !Path::new(&path).is_file() {
+        eprintln!("[quick-access] rejected missing file path={}", path);
         return Err("快速取用檔案不存在".into());
     }
     let timestamp = std::time::SystemTime::now()
@@ -63,7 +70,10 @@ pub fn open_quick_access(
         .inner_size(window_w, window_h)
         .position(x.max(0.0), y.max(0.0))
         .build()
-        .map_err(|e| format!("建立快速取用視窗失敗：{e}"))?;
+        .map_err(|e| {
+            eprintln!("[quick-access] window build failed: {e}");
+            format!("建立快速取用視窗失敗：{e}")
+        })?;
     eprintln!(
         "[quick-access] opened label={} path={}",
         label,
