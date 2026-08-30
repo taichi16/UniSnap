@@ -6,26 +6,25 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use mp4::Bytes;
-use openh264::encoder::{
-    FrameType,
-};
-use openh264::formats::{RgbaSliceU8, YUVBuffer};
-pub use crate::record_types::RecordingState;
-use crate::record_types::{RecordingResult, RecordingSession, ScrollConfig};
 use crate::audio_capture::{start_audio_capture, AudioCapture};
 use crate::frame_source::FrameSource;
-use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
-use crate::recording_output::recording_output_path;
-use crate::recording_audio::audio_track_info;
 use crate::h264_sample::extract_h264_sample;
-use crate::recording_tracks::add_recording_tracks;
+use crate::record_session::{RecordingLifecycle, RecordingPhase};
+pub use crate::record_types::RecordingState;
+use crate::record_types::{RecordingResult, RecordingSession, ScrollConfig};
+use crate::recording_audio::audio_track_info;
+use crate::recording_audio_writer::write_microphone_track;
+use crate::recording_crop::{crop_rgba, resolve_crop, Crop};
 use crate::recording_encoder_init::{create_h264_encoder, create_mp4_writer};
 use crate::recording_finalize::finalize_mp4;
+use crate::recording_output::recording_output_path;
 use crate::recording_timing::next_timed_frame;
-use crate::recording_audio_writer::write_microphone_track;
+use crate::recording_tracks::add_recording_tracks;
 use crate::recording_video_writer::{flush_pending_sample, PendingVideoSample};
 use crate::scroll_trigger::trigger_scroll_capture as trigger_scroll_capture_impl;
+use mp4::Bytes;
+use openh264::encoder::FrameType;
+use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use tauri::AppHandle;
 use xcap::{Frame, Monitor};
 
@@ -94,6 +93,12 @@ pub fn start_recording(
     };
     let stop = Arc::new(AtomicBool::new(false));
     let worker_stop = Arc::clone(&stop);
+    let lifecycle = Arc::new(std::sync::Mutex::new(RecordingLifecycle::new()));
+    lifecycle
+        .lock()
+        .map_err(|_| "無法鎖定錄影生命週期".to_string())?
+        .transition(RecordingPhase::Preparing)?;
+    let worker_lifecycle = Arc::clone(&lifecycle);
     let (finished_tx, finished_rx) = mpsc::channel();
     let (ready_tx, ready_rx) = mpsc::channel();
     let worker_path = output_path.clone();
@@ -129,6 +134,10 @@ pub fn start_recording(
             recorder
                 .start()
                 .map_err(|e| format!("無法開始原生螢幕錄影器：{e}"))?;
+            worker_lifecycle
+                .lock()
+                .map_err(|_| "無法鎖定錄影生命週期".to_string())?
+                .transition(RecordingPhase::Recording)?;
             let started = RecordingResult {
                 path: worker_path.to_string_lossy().into_owned(),
                 frame_count: 0,
@@ -147,7 +156,13 @@ pub fn start_recording(
             )
         })();
         if let Err(error) = &result {
+            if let Ok(mut lifecycle) = worker_lifecycle.lock() {
+                let _ = lifecycle.transition(RecordingPhase::Failed);
+            }
             let _ = ready_tx.send(Err(error.clone()));
+        } else if let Ok(mut lifecycle) = worker_lifecycle.lock() {
+            let _ = lifecycle.transition(RecordingPhase::Stopping);
+            let _ = lifecycle.transition(RecordingPhase::Finished);
         }
         let _ = finished_tx.send(result);
     });
@@ -176,6 +191,7 @@ pub fn start_recording(
     *active = Some(RecordingSession {
         stop,
         finished: finished_rx,
+        lifecycle,
     });
     Ok(started)
 }
@@ -190,6 +206,9 @@ pub fn stop_recording(state: tauri::State<'_, RecordingState>) -> Result<Recordi
         .map_err(|_| "無法鎖定錄影狀態".to_string())?
         .take()
         .ok_or_else(|| "目前沒有進行中的錄影".to_string())?;
+    if let Ok(mut lifecycle) = session.lifecycle.lock() {
+        let _ = lifecycle.transition(RecordingPhase::Stopping);
+    }
     session.stop.store(true, Ordering::SeqCst);
     let result = session
         .finished
@@ -197,9 +216,7 @@ pub fn stop_recording(state: tauri::State<'_, RecordingState>) -> Result<Recordi
         .map_err(|e| format!("等待 MP4 存檔逾時：{e}"))?;
     eprintln!(
         "[record] stop_recording finished result={:?}",
-        result
-            .as_ref()
-            .map(|r| (&r.path, r.frame_count))
+        result.as_ref().map(|r| (&r.path, r.frame_count))
     );
     result
 }
@@ -238,7 +255,8 @@ fn encode_recording(
             &stop,
             &mut next_frame_at,
             interval,
-        )? else {
+        )?
+        else {
             if stop.load(Ordering::SeqCst) {
                 break;
             }

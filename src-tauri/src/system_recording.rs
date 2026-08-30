@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use tauri::AppHandle;
 
+use crate::record_session::{RecordingLifecycle, RecordingPhase};
 use crate::record_types::RecordingState;
 use crate::record_types::{RecordingResult, RecordingSession};
 use crate::recording_output::recording_output_path;
@@ -102,6 +103,16 @@ pub fn start_system_recording(
     }
     let stop = Arc::new(AtomicBool::new(false));
     let worker_stop = Arc::clone(&stop);
+    let lifecycle = Arc::new(std::sync::Mutex::new(RecordingLifecycle::new()));
+    lifecycle
+        .lock()
+        .map_err(|_| "無法鎖定錄影生命週期".to_string())?
+        .transition(RecordingPhase::Preparing)?;
+    lifecycle
+        .lock()
+        .map_err(|_| "無法鎖定錄影生命週期".to_string())?
+        .transition(RecordingPhase::Recording)?;
+    let worker_lifecycle = Arc::clone(&lifecycle);
     let (finished_tx, finished_rx) = mpsc::channel();
     let worker_path = path.clone();
     std::thread::spawn(move || {
@@ -111,6 +122,9 @@ pub fn start_system_recording(
         let mut stop_error = vec![0_i8; 512];
         let stopped = unsafe { sck_stop_recording(stop_error.as_mut_ptr(), stop_error.len()) };
         if !stopped {
+            if let Ok(mut lifecycle) = worker_lifecycle.lock() {
+                let _ = lifecycle.transition(RecordingPhase::Failed);
+            }
             let message = unsafe { std::ffi::CStr::from_ptr(stop_error.as_ptr()) }
                 .to_string_lossy()
                 .into_owned();
@@ -131,11 +145,20 @@ pub fn start_system_recording(
                     })
                 }
             });
+        if let Ok(mut lifecycle) = worker_lifecycle.lock() {
+            let next = if result.is_ok() {
+                RecordingPhase::Finished
+            } else {
+                RecordingPhase::Failed
+            };
+            let _ = lifecycle.transition(next);
+        }
         let _ = finished_tx.send(result);
     });
     *active = Some(RecordingSession {
         stop,
         finished: finished_rx,
+        lifecycle,
     });
     let _ = crate::capture_controls::open_recording_control(
         app.clone(),

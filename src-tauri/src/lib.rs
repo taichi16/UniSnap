@@ -25,6 +25,7 @@ mod recording_crop;
 mod recording_encoder_init;
 mod recording_finalize;
 mod recording_output;
+mod record_session;
 mod recording_timing;
 mod recording_tracks;
 mod recording_video_writer;

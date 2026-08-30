@@ -13,6 +13,7 @@ pub struct RecordingState(pub Mutex<Option<RecordingSession>>);
 pub struct RecordingSession {
     pub(crate) stop: Arc<AtomicBool>,
     pub(crate) finished: mpsc::Receiver<Result<RecordingResult, String>>,
+    pub(crate) lifecycle: Arc<Mutex<crate::record_session::RecordingLifecycle>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -25,7 +26,4 @@ pub struct ScrollConfig {
     pub monitor_offset_x: Option<i32>,
     pub monitor_offset_y: Option<i32>,
 }
-use std::sync::{
-    atomic::AtomicBool,
-    mpsc, Arc, Mutex,
-};
+use std::sync::{atomic::AtomicBool, mpsc, Arc, Mutex};
