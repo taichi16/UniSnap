@@ -20,7 +20,7 @@ export default function QuickAccessWindow({ label }: { label: string }) {
     catch { await getCurrentWindow().close(); }
   };
 
-  const handleDragStart = (event: React.DragEvent<HTMLImageElement>) => {
+  const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {
     if (!item) return;
     const encodedPath = `file://${item.path.split(" ").join("%20")}`;
     const fileName = item.path.split(/[\\/]/).pop() || "Screenshot.png";
@@ -29,9 +29,10 @@ export default function QuickAccessWindow({ label }: { label: string }) {
     event.dataTransfer.setData("text/uri-list", `${encodedPath}\n`);
     // Do not publish the filesystem path as text: apps such as Pages then
     // insert the path string instead of treating the drag as a file drop.
-    // Include the macOS file URL flavor as well as DownloadURL for apps that
-    // use the browser drag-and-drop contract.
+    // Include native file URL flavors for WebKit and DownloadURL for apps
+    // that use the browser drag-and-drop contract.
     event.dataTransfer.setData("public.file-url", encodedPath);
+    event.dataTransfer.setData("application/x-moz-file", encodedPath);
     event.dataTransfer.setData("DownloadURL", `${mime}:${fileName}:${encodedPath}`);
   };
 
@@ -41,7 +42,15 @@ export default function QuickAccessWindow({ label }: { label: string }) {
   return (
     <div className="quick-access-window">
       <header><strong>快速取用</strong><button onClick={() => void close()} aria-label="關閉"><X size={15} /></button></header>
-      <img src={item.imageData} alt="最近儲存的截圖" draggable onDragStart={handleDragStart} title="拖曳圖片到其他 App" />
+      <a
+        className="quick-access-file"
+        href={`file://${item.path.split(" ").join("%20")}`}
+        draggable
+        onDragStart={handleDragStart}
+        title="拖曳圖片檔案到其他 App"
+      >
+        <img src={item.imageData} alt="最近儲存的截圖" draggable={false} />
+      </a>
       <footer><span title={item.path}>{item.path.split(/[\\/]/).pop()}</span><span><Copy size={13} /> 可拖曳到其他 App</span><ExternalLink size={14} /></footer>
     </div>
   );

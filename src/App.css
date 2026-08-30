@@ -859,8 +859,9 @@ input:checked + .slider:before {
 .quick-access-window footer { display: flex; align-items: center; gap: 8px; }
 .quick-access-window header { justify-content: space-between; }
 .quick-access-window header button { display: inline-flex; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
-.quick-access-window img { display: block; width: 100%; min-height: 0; flex: 1; object-fit: contain; border: 1px solid var(--panel-border); border-radius: 7px; background: #111827; cursor: grab; }
-.quick-access-window img:active { cursor: grabbing; }
+.quick-access-file { display: block; width: 100%; min-height: 0; flex: 1; cursor: grab; }
+.quick-access-file:active { cursor: grabbing; }
+.quick-access-window img { display: block; width: 100%; height: 100%; object-fit: contain; border: 1px solid var(--panel-border); border-radius: 7px; background: #111827; pointer-events: none; }
 .quick-access-window footer { color: var(--text-secondary); font-size: 10px; }
 .quick-access-window footer span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quick-access-window footer span:nth-child(2) { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; color: var(--accent-color); }
