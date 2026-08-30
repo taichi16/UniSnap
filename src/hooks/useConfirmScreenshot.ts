@@ -23,10 +23,30 @@ export function useConfirmScreenshot(
       const savedPath = await invoke<string>("save_and_copy_screenshot", {
         base64Image: base64,
         savePath: null,
-        autoCopy: true,
+        // Keep file persistence independent from clipboard availability.
+        // A clipboard failure must not turn a successful save into a save error.
+        autoCopy: false,
       });
-      await invoke("open_quick_access", { imageData: base64, path: savedPath });
-      showToast(`已存檔且複製到剪貼簿\n路徑: ${savedPath}`);
+
+      let copied = true;
+      try {
+        await invoke("copy_screenshot_to_clipboard", { base64Image: base64 });
+      } catch (error) {
+        copied = false;
+        console.error("Clipboard copy error after save:", error);
+      }
+
+      let quickAccessOpened = true;
+      try {
+        await invoke("open_quick_access", { imageData: base64, path: savedPath });
+      } catch (error) {
+        quickAccessOpened = false;
+        console.error("Quick Access error after save:", error);
+      }
+
+      const status = copied ? "已複製到剪貼簿" : "剪貼簿複製失敗";
+      const quickAccessStatus = quickAccessOpened ? "" : "；快速取用視窗開啟失敗";
+      showToast(`已存檔，${status}${quickAccessStatus}\n路徑: ${savedPath}`);
       setTimeout(async () => { await closeEditor(); }, 800);
     } catch (err) {
       console.error("Confirm error:", err);
