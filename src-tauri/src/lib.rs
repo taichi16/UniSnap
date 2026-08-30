@@ -131,6 +131,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let settings = config::load_config(app.handle().clone())
@@ -217,8 +218,7 @@ pub fn run() {
             pin_windows::unpin_screenshot,
             quick_access::open_quick_access,
             quick_access::get_quick_access,
-            quick_access::close_quick_access,
-            quick_access::prepare_quick_access_drag
+            quick_access::close_quick_access
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

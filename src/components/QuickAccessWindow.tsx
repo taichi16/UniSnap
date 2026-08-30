@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, ExternalLink, X } from "lucide-react";
+import { startDrag } from "@crabnebula/tauri-plugin-drag";
 
 interface QuickAccessItem { imageData: string; path: string; }
 
@@ -20,25 +21,12 @@ export default function QuickAccessWindow({ label }: { label: string }) {
     catch { await getCurrentWindow().close(); }
   };
 
-  const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {
+  const handleDragStart = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!item) return;
-    const encodedPath = `file://${item.path.split(" ").join("%20")}`;
-    const fileName = item.path.split(/[\\/]/).pop() || "Screenshot.png";
-    const mime = /\.jpe?g$/i.test(fileName) ? "image/jpeg" : "image/png";
-    // Seed AppKit's native drag pasteboard before the WebView drag leaves the
-    // window. This is what Pages and other macOS apps consume for file drops.
-    void invoke("prepare_quick_access_drag", { path: item.path }).catch((error) => {
-      console.error("Native file drag preparation failed:", error);
+    event.preventDefault();
+    void startDrag({ item: [item.path], icon: item.path }).catch((error) => {
+      console.error("Native file drag failed:", error);
     });
-    event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData("text/uri-list", `${encodedPath}\n`);
-    // Do not publish the filesystem path as text: apps such as Pages then
-    // insert the path string instead of treating the drag as a file drop.
-    // Include native file URL flavors for WebKit and DownloadURL for apps
-    // that use the browser drag-and-drop contract.
-    event.dataTransfer.setData("public.file-url", encodedPath);
-    event.dataTransfer.setData("application/x-moz-file", encodedPath);
-    event.dataTransfer.setData("DownloadURL", `${mime}:${fileName}:${encodedPath}`);
   };
 
   if (error) return <div className="quick-access-window"><p>快速取用載入失敗</p><button onClick={() => void close()}><X size={15} /></button></div>;
@@ -50,8 +38,7 @@ export default function QuickAccessWindow({ label }: { label: string }) {
       <a
         className="quick-access-file"
         href={`file://${item.path.split(" ").join("%20")}`}
-        draggable
-        onDragStart={handleDragStart}
+        onMouseDown={handleDragStart}
         title="拖曳圖片檔案到其他 App"
       >
         <img src={item.imageData} alt="最近儲存的截圖" draggable={false} />

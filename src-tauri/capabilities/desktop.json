@@ -26,6 +26,7 @@
     "core:window:allow-set-decorations",
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
+    "drag:default",
     "allow-app-commands"
   ]
 }
