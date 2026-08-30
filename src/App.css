@@ -516,19 +516,20 @@ input:checked + .slider:before {
   transform: translate(-50%, -50%);
   width: 80%;
   max-width: 480px;
-  background: rgba(25, 25, 30, 0.95);
+  background: var(--panel-bg);
   backdrop-filter: blur(20px);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.32);
+  color: var(--text-primary);
   z-index: 20000;
 }
 
 .ocr-textarea {
   width: 100%;
   height: 150px;
-  background: rgba(0,0,0,0.3);
+  background: var(--bg-color);
   border: 1px solid var(--panel-border);
   color: var(--text-primary);
   padding: 10px;
