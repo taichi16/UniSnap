@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { emit, listen } from "@tauri-apps/api/event";
 import { availableMonitors, getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon } from "lucide-react";
+import InfoDialog from "./InfoDialog";
 
 interface AppConfig {
   shortcut_screenshot: String;
@@ -351,36 +352,21 @@ export default function MainWindow() {
       {showSettings && (
         <main className="main-content" style={{ marginTop: 12, flex: 1, overflowY: "auto" }}>
           <div className="utility-grid">
-          <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowHelp(!showHelp)}>
+          <section className="settings-section help-section info-entry-card">
+              <button className="help-toggle" onClick={() => setShowHelp(true)}>
                 <CircleHelp size={17} />
                 <span>使用說明</span>
-                <span className="help-chevron">{showHelp ? "收合" : "展開"}</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showHelp && <div className="help-grid">
-              <p><strong>圖片編輯：</strong>按「開啟圖片」載入既有圖片；使用裁切框調整範圍，或按擴增畫布加入四周空白，再搭配標註工具編修。</p>
-              <p><strong>截圖：</strong>選擇矩形截圖、全螢幕或工作區，再拖曳選取範圍。</p>
-              <p><strong>長截圖：</strong>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；若畫面有多個捲動區域，只選主要內容區。開始後請不要移動滑鼠或操作其他視窗，等待畫面完成捲動與拼接；截圖中若要中止請將滑鼠移開選取區域。</p>
-              <p><strong>錄影：</strong>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影。</p>
-              <p><strong>儲存：</strong>在編輯工具列選擇 PNG 或 JPG，再按下載圖示另存新檔。</p>
-              <p><strong>取消：</strong>一般截圖可按 Esc；長截圖請按畫面上的「取消」按鈕；錄影請按浮動控制列的停止並存檔。</p>
-            </div>}
+              <p className="info-entry-summary">截圖、長截圖、錄影、圖片編輯與快捷鍵的操作方式</p>
           </section>
-          <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowAbout(!showAbout)}>
+          <section className="settings-section help-section info-entry-card">
+              <button className="help-toggle" onClick={() => setShowAbout(true)}>
                 <BarChart3 size={17} />
-                <span>關於</span>
-                <span className="help-chevron">{showAbout ? "收合" : "查看"}</span>
+                <span>關於 UniSnap</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showAbout && <div className="about-panel">
-              <h3>UniSnap V 1.0</h3>
-              <p>UniSnap 是一套跨平台的螢幕截圖、長截圖與螢幕錄影工具，從需求規劃、介面設計到多螢幕與媒體處理逐步整合完成。</p>
-              <p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p>
-              <p><strong>平台整合：</strong>macOS ScreenCaptureKit、Windows 螢幕擷取架構。</p>
-              <p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p>
-              <p><strong>作者：</strong>YuJhao Wang</p>
-              <p><strong>版本：</strong>V 1.0</p>
-            </div>}
+              <p className="info-entry-summary">版本、作者、技術架構與 UniSnap 開發歷程</p>
           </section>
           </div>
           {/* Save Folder Settings */}
@@ -489,6 +475,20 @@ export default function MainWindow() {
         </div>
       )}
       {statusMessage && <div className="toast">{statusMessage}</div>}
+      {showHelp && (
+        <InfoDialog title="使用說明" onClose={() => setShowHelp(false)}>
+          <div className="info-dialog-section"><h3>一般截圖</h3><p>選擇矩形截圖、全螢幕或工作區。矩形截圖請拖曳框選範圍；完成後可使用編輯工具列標註、複製或儲存。</p></div>
+          <div className="info-dialog-section"><h3>長截圖</h3><p>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；若畫面有多個捲動區域，只選主要內容區。開始後請不要移動滑鼠或操作其他視窗，等待畫面完成捲動與拼接；截圖中若要中止請將滑鼠移開選取區域。</p></div>
+          <div className="info-dialog-section"><h3>螢幕錄影</h3><p>框選錄影區域後，在浮動控制列選擇 FPS、麥克風與系統聲音，再按「開始錄影」。完成時按「停止並存檔」。</p></div>
+          <div className="info-dialog-section"><h3>圖片編輯</h3><p>開啟舊檔可載入 PNG、JPG 或 JPEG。可裁切、擴增四周空白，並使用畫筆、形狀、箭頭、馬賽克、文字與 OCR。</p></div>
+          <div className="info-dialog-section"><h3>快捷鍵與取消</h3><p>一般截圖可按 Escape 取消；長截圖請使用畫面上的「取消」按鈕。全域截圖與錄影快捷鍵可在設定中重新輸入。</p></div>
+        </InfoDialog>
+      )}
+      {showAbout && (
+        <InfoDialog title="關於 UniSnap" onClose={() => setShowAbout(false)}>
+          <div className="about-panel"><h3>UniSnap V 2.0</h3><p>UniSnap 是 macOS 螢幕截圖、長截圖、圖片編輯與螢幕錄影工具，從需求規劃、介面設計到影像處理逐步整理成模組化架構。</p><p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p><p><strong>macOS 整合：</strong>ScreenCaptureKit、Vision、CoreGraphics。</p><p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p><p><strong>作者：</strong>YuJhao Wang</p><p><strong>版本：</strong>V 2.0</p></div>
+        </InfoDialog>
+      )}
     </div>
   );
 }
