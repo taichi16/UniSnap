@@ -7,6 +7,7 @@ mod image_data;
 mod platform;
 mod record;
 mod recording_audio;
+mod recording_backend;
 mod recording_crop;
 mod recording_mp4;
 mod recording_output;

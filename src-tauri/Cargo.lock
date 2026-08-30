@@ -5743,6 +5743,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-opener",
  "wasapi",
+ "windows 0.62.2",
  "windows-sys 0.59.0",
  "xcap",
 ]

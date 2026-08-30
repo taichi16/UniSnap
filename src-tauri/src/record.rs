@@ -34,6 +34,7 @@ use xcap::{Frame, Monitor};
 use crate::recording_audio::{
     encode_aac, mix_audio_samples, start_audio_capture, AudioCapture, AudioSamples,
 };
+use crate::recording_backend::{select_backend, RecordingBackend};
 use crate::recording_system_audio::{start_system_audio_capture, SystemAudioCapture};
 
 #[cfg(target_os = "macos")]
@@ -489,7 +490,17 @@ fn encode_recording(
 ) -> Result<RecordingResult, String> {
     #[cfg(target_os = "windows")]
     {
-        return encode_recording_ffmpeg(first, frame_source, crop, fps, path, stop, audio, system_audio);
+        match select_backend() {
+            // The Media Foundation encoder is intentionally gated until its
+            // end-to-end H.264/AAC acceptance tests pass. Keep the proven
+            // pipeline active as the fallback during migration.
+            RecordingBackend::MediaFoundation => {
+                return encode_recording_ffmpeg(first, frame_source, crop, fps, path, stop, audio, system_audio);
+            }
+            RecordingBackend::Ffmpeg => {
+                return encode_recording_ffmpeg(first, frame_source, crop, fps, path, stop, audio, system_audio);
+            }
+        }
     }
     let encoder_config = EncoderConfig::new()
         .usage_type(UsageType::ScreenContentRealTime)
