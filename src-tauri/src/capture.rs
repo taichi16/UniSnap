@@ -7,6 +7,8 @@ use crate::scroll_composite::compose_scroll_frames;
 use crate::scroll_target_window::resolve_scroll_target;
 use crate::capture_output::encode_png_data_url;
 use crate::scroll_capture_helpers::{crop_selection, strategy_label};
+use crate::scroll_metrics::ScrollMetrics;
+use crate::scroll_session::ScrollCaptureSession;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -107,15 +109,15 @@ pub fn auto_scroll_capture_window(
     let frame_width = first_frame.width();
     let frame_height = first_frame.height();
     let mut previous_frame = first_frame.clone();
-    let mut frames = vec![first_frame.clone()];
-    let mut frame_offsets = vec![0u32];
-    let mut fixed_masks: Vec<(Vec<bool>, Vec<bool>)> = Vec::new();
-    let mut total_height = frame_height;
+    let mut session = ScrollCaptureSession::new(first_frame);
+    let mut metrics = ScrollMetrics::new();
+    metrics.final_height = frame_height;
     let mut stable_attempts = 0usize;
     let mut reached_bottom = false;
     let mut was_cancelled = false;
 
     for step in 1..=MAX_SCROLL_STEPS {
+        metrics.capture_steps += 1;
         if SCROLL_CANCELLED.load(Ordering::SeqCst) {
             was_cancelled = true;
             break;
@@ -158,6 +160,7 @@ pub fn auto_scroll_capture_window(
             }
             next_frame = candidate;
         }
+        metrics.settle_attempts += settle_attempts;
         eprintln!("[scroll] step={} settle_attempts={}", step, settle_attempts);
         if next_frame.dimensions() != previous_frame.dimensions() {
             return Err("Target window size changed during long capture".to_string());
@@ -168,35 +171,28 @@ pub fn auto_scroll_capture_window(
             break;
         }
 
-        let detected_shift = if frames.len() > 1 {
-            let expected = frame_offsets[1].saturating_sub(frame_offsets[0]);
+        let detected_shift = if session.frame_count() > 1 {
+            let offsets = session.offsets();
+            let expected = offsets[1].saturating_sub(offsets[0]);
             find_scroll_shift_near(&previous_frame, &next_frame, expected)
         } else {
             find_scroll_shift(&previous_frame, &next_frame)
         };
         if let Some(shift) = detected_shift {
             stable_attempts = 0;
-            let current_offset = total_height.saturating_sub(frame_height);
+            let current_offset = session.total_height().saturating_sub(frame_height);
             let next_offset = current_offset
                 .checked_add(shift)
                 .ok_or_else(|| "Long screenshot height overflow".to_string())?;
-            let next_total_height = frame_height
-                .checked_add(next_offset)
-                .ok_or_else(|| "Long screenshot height overflow".to_string())?;
-            if next_total_height > MAX_STITCHED_HEIGHT {
-                return Err(format!(
-                    "長截圖超過安全高度 {} 像素，請縮小範圍或分段擷取",
-                    MAX_STITCHED_HEIGHT
-                ));
-            }
-            fixed_masks.push((
+            let fixed_mask = (
                 fixed_row_mask(&previous_frame, &next_frame),
                 fixed_column_mask(&previous_frame, &next_frame),
-            ));
-            frames.push(next_frame.clone());
-            frame_offsets.push(next_offset);
+            );
+            session.append(next_frame.clone(), next_offset, fixed_mask, MAX_STITCHED_HEIGHT)
+                .map_err(|error| format!("{error}，請縮小範圍或分段擷取"))?;
+            metrics.accepted_frames += 1;
+            metrics.final_height = session.total_height();
             eprintln!("[scroll] step={} shift={} offset={} frame={}x{}", step, shift, next_offset, frame_width, frame_height);
-            total_height = next_total_height;
             previous_frame = next_frame;
         } else {
             if frames_are_stable(&previous_frame, &next_frame) {
@@ -214,9 +210,13 @@ pub fn auto_scroll_capture_window(
                 // (or their content changes without a stable pixel shift).
                 // Keep the initial frame instead of reporting a failed long
                 // screenshot; the user still receives the selected window.
-                if frames.len() == 1 {
-                    return encode_png_data_url(&first_frame);
+                metrics.rejected_frames += 1;
+                if session.frame_count() == 1 {
+                    eprintln!("{}", metrics.summary("single-frame-fallback"));
+                    return encode_png_data_url(session.frames().first().expect("initial frame"));
                 }
+                metrics.alignment_failures += 1;
+                eprintln!("{}", metrics.summary("alignment-failed"));
                 return Err(format!(
                     "第 {} 次捲動後無法可靠比對影像；已停止以避免產生缺段截圖",
                     step
@@ -226,13 +226,16 @@ pub fn auto_scroll_capture_window(
     }
 
     if !reached_bottom && !was_cancelled {
+        eprintln!("{}", metrics.summary("safety-limit"));
         return Err(format!(
             "已達 {} 次安全上限但尚未確認頁尾，未輸出可能不完整的截圖",
             MAX_SCROLL_STEPS
         ));
     }
 
-    compose_scroll_frames(&frames, &frame_offsets, &fixed_masks, total_height)
+    let outcome = if was_cancelled { "cancelled" } else { "saved" };
+    eprintln!("{}", metrics.summary(outcome));
+    compose_scroll_frames(session.frames(), session.offsets(), session.fixed_masks(), session.total_height())
 }
 
 #[cfg(test)]

@@ -33,6 +33,8 @@ mod scroll_capture_helpers;
 mod scroll_input;
 mod scroll_masks;
 mod scroll_matching;
+mod scroll_metrics;
+mod scroll_session;
 mod scroll_target;
 mod scroll_target_window;
 mod scroll_trigger;
