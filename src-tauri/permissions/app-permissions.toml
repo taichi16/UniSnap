@@ -21,5 +21,9 @@ commands.allow = [
   "get_pinned_image",
   "open_image_in_main_editor",
 
+  "open_quick_access",
+  "get_quick_access",
+  "close_quick_access",
+
   "unpin_screenshot"
 ]
