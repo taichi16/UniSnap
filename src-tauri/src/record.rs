@@ -3,6 +3,8 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 #[cfg(target_os = "windows")]
 use std::io::Write;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use std::process::{Command, Stdio};
@@ -789,7 +791,10 @@ fn encode_recording_ffmpeg(
     let offset_x = desktop_x.saturating_add(crop.x as i32).to_string();
     let offset_y = desktop_y.saturating_add(crop.y as i32).to_string();
     let video_path = path.with_extension("video.mp4");
-    let mut child = Command::new(&ffmpeg)
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut ffmpeg_command = Command::new(&ffmpeg);
+    ffmpeg_command.creation_flags(CREATE_NO_WINDOW);
+    let mut child = ffmpeg_command
         .args([
             "-hide_banner",
             "-loglevel",
@@ -891,7 +896,9 @@ fn encode_recording_ffmpeg(
             write_pcm_wav(&wav_path, &samples)?;
             let muxed_path = path.with_extension("muxed.mp4");
             let audio_filter = format!("adelay={audio_delay_ms}:all=1");
-            let mux = Command::new(&ffmpeg)
+            let mut mux_command = Command::new(&ffmpeg);
+            mux_command.creation_flags(CREATE_NO_WINDOW);
+            let mux = mux_command
                 .args(["-hide_banner", "-loglevel", "error", "-i"])
                 .arg(&video_path)
                 .args(["-i"])
