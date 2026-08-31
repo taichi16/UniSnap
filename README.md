@@ -5,6 +5,19 @@ UniSnap 是一套以 macOS 為目前主要目標的螢幕截圖、長截圖、�
 整理版的架構與錯誤修正記錄請參閱：[REFACTOR_NOTES.md](REFACTOR_NOTES.md)
 v2 開發追蹤與尚未完成的驗收邊界請參閱：[V2_ROADMAP.md](V2_ROADMAP.md)
 
+## V2.0 本版修改摘要
+
+- 將 macOS V2 維持為獨立專案，與 Windows 版本分開建置、測試及維護。
+- 長截圖流程改為先框選主要可捲動內容區，再執行擷取；補強 Retina／多螢幕座標換算、穩定取樣、內容對齊與拼接，並避免工具列或固定元件重複進入結果。
+- 修正裁切後擴增空白的作用範圍，改以目前編輯中的影像畫布為基準，而不是重新載入整張原始畫面。
+- 修正編輯器工具列、顏色／形狀子選單及右邊界顯示問題，避免控制項被選取區域或畫面邊界遮住。
+- OCR 優先使用 macOS Vision；無法使用原生辨識時保留 Tesseract.js fallback，並改善二次辨識的文字對比處理。
+- 分離「存檔」、「剪貼簿複製」與「Quick Access」結果回報；選用功能失敗時保留編輯視窗，避免將已成功存檔誤報為失敗。
+- Quick Access 採用 Tauri 原生拖曳外掛（基於 [drag-rs](https://github.com/crabnebula-dev/drag-rs)）提供檔案拖曳資料；跨應用程式實際接收仍須在具備 macOS 權限的桌面環境驗收。
+- 修正多螢幕錄影的顯示器識別與實體座標處理，避免三螢幕配置下擷取錯誤。
+
+本版已完成 Rust／前端建置與封裝檢查；動態網頁長截圖、Word／Pages 等其他 App、剪貼簿及 Quick Access 拖曳仍應依目標 App 進行人工驗收，不能以編譯成功取代實機驗收。
+
 本專案使用 Tauri 建立桌面應用程式，前端採 React + TypeScript，原生功能採 Rust，並整合 macOS ScreenCaptureKit、xcap、OpenH264 與 AAC 音訊處理。
 
 ## 主要功能

@@ -3,6 +3,7 @@ use xcap::Monitor;
 
 use crate::capture_types::{MonitorBasicInfo, MonitorScreenshot};
 use crate::image_data::rgba_to_jpeg_data_url;
+use crate::monitor_resolution::resolve_xcap_monitor;
 
 #[tauri::command]
 pub fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorBasicInfo>, String> {
@@ -12,16 +13,13 @@ pub fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorBasicInfo>, Str
     let xcap_monitors = Monitor::all().unwrap_or_default();
     Ok(monitors
         .into_iter()
-        .map(|monitor| {
+        .enumerate()
+        .map(|(index, monitor)| {
             let x = monitor.position().x;
             let y = monitor.position().y;
             let fallback = monitor.name().cloned().unwrap_or_else(|| "未命名顯示器".to_string());
-            let name = xcap_monitors
-                .iter()
-                .find_map(|xcap| {
-                    let same_position = xcap.x().ok() == Some(x) && xcap.y().ok() == Some(y);
-                    same_position.then(|| xcap.name().ok()).flatten()
-                })
+            let name = resolve_xcap_monitor(&monitor, &xcap_monitors, index)
+                .and_then(|xcap| xcap.name().ok())
                 .unwrap_or(fallback);
             MonitorBasicInfo {
                 name,
@@ -60,4 +58,3 @@ pub fn capture_screens() -> Result<Vec<MonitorScreenshot>, String> {
         })
         .collect()
 }
-

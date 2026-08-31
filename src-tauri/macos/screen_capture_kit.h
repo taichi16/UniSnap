@@ -27,5 +27,3 @@ bool vision_ocr_png(
     char *output,
     size_t output_len
 );
-
-bool prepare_file_drag(const char *path, char *error_buffer, size_t error_buffer_size);

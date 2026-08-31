@@ -272,17 +272,3 @@ bool vision_ocr_png(const unsigned char *data, size_t data_len, char *output, si
     snprintf(output, output_len, "%s", text.UTF8String ?: "");
     return true;
 }
-
-bool prepare_file_drag(const char *path, char *error_buffer, size_t error_buffer_size) {
-    if (path == NULL || path[0] == '\0') {
-        write_error(error_buffer, error_buffer_size, @"拖曳檔案路徑為空");
-        return false;
-    }
-    NSString *pathString = [NSString stringWithUTF8String:path];
-    NSURL *fileURL = [NSURL fileURLWithPath:pathString];
-    NSPasteboard *pasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
-    [pasteboard clearContents];
-    BOOL written = [pasteboard writeObjects:@[fileURL]];
-    if (!written) write_error(error_buffer, error_buffer_size, @"無法寫入 macOS 原生拖曳剪貼簿");
-    return written;
-}
