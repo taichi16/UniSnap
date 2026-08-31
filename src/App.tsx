@@ -5,6 +5,7 @@ import CaptureWindow from "./components/CaptureWindow";
 import PinWindow from "./components/PinWindow";
 import RecordingControl from "./components/RecordingControl";
 import RecordingStartControl from "./components/RecordingStartControl";
+import InfoWindow from "./components/InfoWindow";
 import "./App.css";
 
 
@@ -75,6 +76,10 @@ export default function App() {
 
   if (!isReady) {
     return <div style={{ backgroundColor: "#000000", width: "100vw", height: "100vh" }} />;
+  }
+
+  if (path === "/info/help" || path === "/info/about" || activeLabel === "info_help" || activeLabel === "info_about") {
+    return <InfoWindow kind={(path.endsWith("about") || activeLabel === "info_about") ? "about" : "help"} />;
   }
 
   if (isCaptureWindow) {

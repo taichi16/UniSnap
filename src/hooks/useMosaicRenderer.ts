@@ -19,8 +19,11 @@ export function useMosaicRenderer(imageRef: MutableRefObject<HTMLImageElement | 
       rw,
       rh,
       size,
-      window.innerWidth,
-      window.innerHeight,
+      // The editor canvas can be taller than the viewport (long screenshots).
+      // Using window dimensions made the temporary source canvas too short;
+      // getImageData then returned transparent pixels rendered as black blocks.
+      ctx.canvas.width,
+      ctx.canvas.height,
     );
   }, [imageRef]);
 }

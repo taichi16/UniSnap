@@ -21,6 +21,47 @@ pub fn log_backend(msg: &str) {
     }
 }
 
+#[tauri::command]
+pub fn open_info_window(app: tauri::AppHandle, kind: String) -> Result<(), String> {
+    let safe_kind = if kind == "about" { "about" } else { "help" };
+    let label = format!("info_{safe_kind}");
+    if let Some(existing) = app.get_webview_window(&label) {
+        existing.show().map_err(|e| e.to_string())?;
+        existing.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    let url = if let Some(main) = app.get_webview_window("main") {
+        let mut current = main.url().map_err(|e| e.to_string())?;
+        current.set_path(if safe_kind == "about" { "/unisnap-about.html" } else { "/unisnap-help.html" });
+        current.set_query(None);
+        WebviewUrl::External(current)
+    } else {
+        WebviewUrl::App("index.html".into())
+    };
+    let title = if safe_kind == "about" { "關於 UniSnap" } else { "使用說明" };
+    let body = if safe_kind == "about" {
+        "<h1>關於 UniSnap</h1><p>UniSnap 是螢幕截圖、長截圖與螢幕錄影工具。</p><ul><li><b>版本</b><span>1.0</span></li><li><b>技術</b><span>Tauri、Rust、React、TypeScript</span></li><li><b>作者</b><span>YuJhao Wang</span></li></ul>"
+    } else {
+        "<h1>使用說明</h1><ul><li><b>截圖</b><span>選擇矩形截圖、全螢幕或工作區，再拖曳選取範圍。</span></li><li><b>長截圖</b><span>框選主要可捲動內容區後開始，完成後可裁切、標註與馬賽克。</span></li><li><b>螢幕錄影</b><span>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影。</span></li><li><b>儲存與取消</b><span>編輯工具列可儲存 PNG/JPG；一般截圖按 Esc，長截圖按取消，錄影按停止。</span></li></ul>"
+    };
+    let script = format!(r#"document.title={title:?};document.body.innerHTML=`<main class=\"info-native\">{body}</main>`;const s=document.createElement('style');s.textContent='body{{margin:0;background:#f8fafc;color:#172033;font:14px Segoe UI,sans-serif}}.info-native{{padding:28px 34px}}h1{{font-size:25px;margin:0 0 24px}}ul{{list-style:none;padding:0;margin:0;display:grid;gap:13px}}li{{display:grid;gap:4px;padding:14px 16px;border:1px solid #d7deea;border-radius:10px;background:white}}b{{color:#2563eb;font-size:15px}}span{{line-height:1.6}}';document.head.appendChild(s);"#);
+    let script_for_load = script.clone();
+    WebviewWindowBuilder::new(&app, &label, url)
+        .title(if safe_kind == "about" { "關於 UniSnap" } else { "使用說明" })
+        .inner_size(620.0, 560.0)
+        .min_inner_size(420.0, 360.0)
+        .resizable(true)
+        .center()
+        .on_page_load(move |window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                let _ = window.eval(&script_for_load);
+            }
+        })
+        .build()
+        .map_err(|e| format!("建立資訊視窗失敗：{e}"))?;
+    Ok(())
+}
+
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct MonitorBasicInfo {
     pub name: String,
@@ -159,8 +200,14 @@ fn trigger_screenshot_impl(
     mode: Option<String>,
     monitor_index: Option<usize>,
 ) -> Result<(), String> {
+    // Hide the main window from the compositor itself. Frontend hide() can
+    // return before DWM has committed the change, leaving the UniSnap toolbar
+    // in the next desktop frame.
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
     // Ultra-low latency: 40ms is plenty for the window hide animation on macOS
-    std::thread::sleep(std::time::Duration::from_millis(40));
+    std::thread::sleep(std::time::Duration::from_millis(250));
 
     let mode_str = mode.unwrap_or_else(|| "screenshot".to_string());
     let timestamp = std::time::SystemTime::now()
@@ -1709,6 +1756,10 @@ pub fn capture_full_screen(
 
     let target_xcap =
         matched_xcap.ok_or_else(|| format!("No matching monitor at index {}", idx))?;
+    #[cfg(target_os = "windows")]
+    let img = capture_monitor_gdi(phys_x, phys_y, tauri_mon.size().width, tauri_mon.size().height)
+        .map_err(|e| format!("Capture error: {}", e))?;
+    #[cfg(not(target_os = "windows"))]
     let img = target_xcap
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;
@@ -1778,6 +1829,10 @@ pub fn capture_work_area(
 
     let target_xcap =
         matched_xcap.ok_or_else(|| format!("No matching monitor at index {}", idx))?;
+    #[cfg(target_os = "windows")]
+    let full_img = capture_monitor_gdi(phys_x, phys_y, tauri_mon.size().width, tauri_mon.size().height)
+        .map_err(|e| format!("Capture error: {}", e))?;
+    #[cfg(not(target_os = "windows"))]
     let full_img = target_xcap
         .capture_image()
         .map_err(|e| format!("Capture error: {}", e))?;

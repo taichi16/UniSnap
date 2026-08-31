@@ -29,6 +29,7 @@ commands.allow = [
   "cancel_scroll_capture",
   "get_pinned_image",
   "open_image_in_main_editor",
+  "open_info_window",
 
   "unpin_screenshot"
 ]

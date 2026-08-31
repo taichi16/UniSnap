@@ -63,12 +63,20 @@ export default function MainWindow() {
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [showAbout, setShowAbout] = useState(false);
+  const [infoModal, setInfoModal] = useState<"help" | "about" | null>(null);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [selectedMonitor, setSelectedMonitor] = useState(0);
   const [monitorError, setMonitorError] = useState<string | null>(null);
   const [screenPermissionError, setScreenPermissionError] = useState(false);
+
+  useEffect(() => {
+    if (!infoModal) return;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setInfoModal(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [infoModal]);
 
   const fetchMonitors = async () => {
     try {
@@ -354,35 +362,18 @@ export default function MainWindow() {
         <main className="main-content" style={{ marginTop: 12, flex: 1, overflowY: "auto" }}>
           <div className="utility-grid">
           <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowHelp(!showHelp)}>
+              <button className="help-toggle" onClick={() => setInfoModal("help")}>
                 <CircleHelp size={17} />
                 <span>使用說明</span>
-                <span className="help-chevron">{showHelp ? "收合" : "展開"}</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showHelp && <div className="help-grid">
-              <p><strong>圖片編輯：</strong>按「開啟圖片」載入既有圖片；使用裁切框調整範圍，或按擴增畫布加入四周空白，再搭配標註工具編修。</p>
-              <p><strong>截圖：</strong>選擇矩形截圖、全螢幕或工作區，再拖曳選取範圍。</p>
-              <p><strong>長截圖：</strong>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；若畫面有多個捲動區域，只選主要內容區。開始後請不要移動滑鼠或操作其他視窗，等待畫面完成捲動與拼接；截圖中若要中止請將滑鼠移開選取區域。</p>
-              <p><strong>錄影：</strong>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影；系統聲音會擷取 Windows 預設輸出裝置。</p>
-              <p><strong>儲存：</strong>在編輯工具列選擇 PNG 或 JPG，再按下載圖示另存新檔。</p>
-              <p><strong>取消：</strong>一般截圖可按 Esc；長截圖請按畫面上的「取消」按鈕；錄影請按浮動控制列的停止並存檔。</p>
-            </div>}
           </section>
           <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowAbout(!showAbout)}>
+              <button className="help-toggle" onClick={() => setInfoModal("about")}>
                 <BarChart3 size={17} />
                 <span>關於</span>
-                <span className="help-chevron">{showAbout ? "收合" : "查看"}</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showAbout && <div className="about-panel">
-              <h3>UniSnap V 1.0</h3>
-              <p>UniSnap 是一套跨平台的螢幕截圖、長截圖與螢幕錄影工具，從需求規劃、介面設計到多螢幕與媒體處理逐步整合完成。</p>
-              <p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p>
-              <p><strong>平台整合：</strong>Windows 螢幕擷取、剪貼簿與錄影架構。</p>
-              <p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p>
-              <p><strong>作者：</strong>YuJhao Wang</p>
-              <p><strong>版本：</strong>V 1.0</p>
-            </div>}
           </section>
           </div>
           {/* Save Folder Settings */}
@@ -498,6 +489,45 @@ export default function MainWindow() {
         <div className="permission-banner">
           ⚠️ 需要<strong>螢幕擷取權限</strong>。請確認 Windows 已允許本應用程式擷取螢幕，
           並關閉可能阻擋桌面擷取的安全性或隱私工具後重新啟動。
+        </div>
+      )}
+      {infoModal && (
+        <div className="info-modal-backdrop" onMouseDown={() => setInfoModal(null)}>
+          <section
+            className="info-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label={infoModal === "help" ? "使用說明" : "關於 UniSnap"}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="info-modal-header">
+              <h2>{infoModal === "help" ? "使用說明" : "關於 UniSnap"}</h2>
+              <button className="info-modal-close" type="button" onClick={() => setInfoModal(null)} aria-label="關閉">×</button>
+            </header>
+            <div className="info-modal-content">
+              {infoModal === "help" ? (
+                <div className="info-modal-list">
+                  <section><h3>一般截圖</h3><p>選擇矩形截圖、全螢幕或工作區。矩形截圖請拖曳框選範圍，完成後可使用編輯工具標註、複製或儲存。</p></section>
+                  <section><h3>長截圖</h3><p>先框選同一個可捲動內容區，再按「開始長截圖」。請避開分頁列、網址列、固定側欄與浮動按鈕，並等待自動捲動與拼接完成。</p></section>
+                  <section><h3>螢幕錄影</h3><p>框選錄影區域後，在浮動控制列選擇 FPS、麥克風與系統聲音，再按「開始錄影」。完成時按「停止並存檔」。</p></section>
+                  <section><h3>圖片編輯</h3><p>開啟 PNG、JPG 或 JPEG 圖片後，可裁切、擴增畫布，並使用畫筆、形狀、箭頭、馬賽克、文字與 OCR。</p></section>
+                  <section><h3>快捷鍵與取消</h3><p>全域快捷鍵可在設定中重新輸入。一般截圖可按 Esc 取消；長截圖與錄影請使用畫面上的取消或停止按鈕。</p></section>
+                </div>
+              ) : (
+                <div className="about-modal-body">
+                  <h3>UniSnap V 2.0</h3>
+                  <p>UniSnap 是一套 Windows 螢幕截圖、長截圖、圖片編輯與螢幕錄影工具。</p>
+                  <dl>
+                    <div><dt>開發工具</dt><dd>Tauri、Rust、React、TypeScript、Vite</dd></div>
+                    <div><dt>平台整合</dt><dd>Windows 螢幕擷取、剪貼簿與影音錄製</dd></div>
+                    <div><dt>AI 協作工具</dt><dd>Antigravity IDE 與 ChatGPT</dd></div>
+                    <div><dt>作者</dt><dd>YuJhao Wang</dd></div>
+                    <div><dt>版本</dt><dd>V 2.0</dd></div>
+                  </dl>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       )}
       {statusMessage && <div className="toast">{statusMessage}</div>}

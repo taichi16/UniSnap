@@ -33,6 +33,7 @@ mod windows_impl {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread::{self, JoinHandle};
+    use std::time::{Duration, Instant};
     use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
 
     pub struct SystemAudioCapture {
@@ -126,29 +127,29 @@ mod windows_impl {
         // Shared-mode loopback is intentionally normalized to stereo float
         // PCM. WASAPI performs the device-format conversion in shared mode.
         let desired_format = WaveFormat::new(32, 32, &SampleType::Float, 44_100, 2, None);
-        let (default_period, _) = audio_client
+        let (_, min_period) = audio_client
             .get_device_period()
             .map_err(|e| format!("讀取 WASAPI 裝置週期失敗：{e}"))?;
+        // Let WASAPI signal the exact buffer cadence. Polling at a fixed
+        // sleep interval can miss a period and causes audible gaps.
         let mode = StreamMode::EventsShared {
             autoconvert: true,
-            buffer_duration_hns: default_period,
+            buffer_duration_hns: min_period,
         };
         audio_client
-            // A render endpoint becomes a loopback capture client when the
-            // requested stream direction is Capture. Passing Render here
-            // creates a render client, so get_audiocaptureclient() fails with
-            // AUDCLNT_E_WRONG_ENDPOINT_TYPE (0x88890003).
+            // This pairing makes wasapi set AUDCLNT_STREAMFLAGS_LOOPBACK.
             .initialize_client(&desired_format, &Direction::Capture, &mode)
             .map_err(|e| format!("初始化 WASAPI loopback 失敗：{e}"))?;
-        let event = audio_client
-            .set_get_eventhandle()
-            .map_err(|e| format!("建立 WASAPI 事件通知失敗：{e}"))?;
         let capture_client = audio_client
             .get_audiocaptureclient()
             .map_err(|e| format!("取得 WASAPI loopback 擷取介面失敗：{e}"))?;
+        let event = audio_client
+            .set_get_eventhandle()
+            .map_err(|e| format!("建立 WASAPI 事件通知失敗：{e}"))?;
         audio_client
             .start_stream()
             .map_err(|e| format!("啟動 WASAPI loopback 失敗：{e}"))?;
+        let capture_started_at = Instant::now();
 
         ready_tx
             .send(Ok((44_100, 2)))
@@ -166,19 +167,82 @@ mod windows_impl {
                 for _ in 0..usable_bytes {
                     bytes.push(queue.pop_front().expect("WASAPI queue length checked"));
                 }
+                let packet = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect::<Vec<_>>();
                 let mut guard = samples
                     .lock()
                     .map_err(|_| "WASAPI 系統音訊緩衝區鎖定失敗".to_string())?;
-                for chunk in bytes.chunks_exact(4) {
-                    guard.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-                }
+                append_packet_at_elapsed_time(
+                    &mut guard,
+                    &packet,
+                    2,
+                    44_100,
+                    capture_started_at.elapsed(),
+                );
             }
-            let _ = event.wait_for_event(100);
+            event
+                .wait_for_event(1_000_000)
+                .map_err(|e| format!("等待 WASAPI 音訊事件失敗：{e}"))?;
         }
         audio_client
             .stop_stream()
             .map_err(|e| format!("停止 WASAPI loopback 失敗：{e}"))?;
         Ok(())
+    }
+
+    /// WASAPI loopback may emit no packets while the render endpoint is
+    /// silent. Appending only received packets collapses that silent wall-clock
+    /// interval and moves audio that starts later to the beginning of the
+    /// recording. Place each packet on the monotonic capture timeline and pad
+    /// any missing interval with zero-valued PCM frames.
+    fn append_packet_at_elapsed_time(
+        target: &mut Vec<f32>,
+        packet: &[f32],
+        channels: usize,
+        sample_rate: u32,
+        elapsed: Duration,
+    ) {
+        if channels == 0 || packet.is_empty() {
+            return;
+        }
+        let packet_frames = packet.len() / channels;
+        if packet_frames == 0 {
+            return;
+        }
+        let elapsed_frames = elapsed
+            .as_nanos()
+            .saturating_mul(sample_rate as u128)
+            .saturating_div(1_000_000_000) as usize;
+        let target_start_frame = elapsed_frames.saturating_sub(packet_frames);
+        let captured_frames = target.len() / channels;
+        // Ignore ordinary callback scheduling jitter. Only a real missing
+        // interval (at least 50 ms) is silence-padded, preventing tiny timing
+        // variations from creating audible clicks or stutter.
+        let missing_frames = target_start_frame.saturating_sub(captured_frames);
+        let silence_threshold_frames = (sample_rate as usize / 20).max(1);
+        if missing_frames >= silence_threshold_frames {
+            target.resize(target_start_frame.saturating_mul(channels), 0.0);
+        }
+        target.extend_from_slice(packet);
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::append_packet_at_elapsed_time;
+        use std::time::Duration;
+
+        #[test]
+        fn preserves_silence_before_first_loopback_packet() {
+            let mut samples = Vec::new();
+            let packet = vec![0.25; 441 * 2];
+            append_packet_at_elapsed_time(&mut samples, &packet, 2, 44_100, Duration::from_secs(2));
+
+            assert_eq!(samples.len(), 88_200 * 2);
+            assert!(samples[..(87_759 * 2)].iter().all(|sample| *sample == 0.0));
+            assert!(samples[(87_759 * 2)..].iter().all(|sample| *sample == 0.25));
+        }
     }
 }
 

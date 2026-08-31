@@ -7,7 +7,6 @@ mod image_data;
 mod platform;
 mod record;
 mod recording_audio;
-mod recording_backend;
 mod recording_crop;
 mod recording_mp4;
 mod recording_output;
@@ -19,8 +18,8 @@ mod scroll_masks;
 mod scroll_matching;
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -283,6 +282,7 @@ pub fn run() {
             greet,
             log_from_frontend,
             capture::list_monitors,
+            capture::open_info_window,
             capture::capture_screens,
             capture::trigger_screenshot,
             capture::open_image_editor,

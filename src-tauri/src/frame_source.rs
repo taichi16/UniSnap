@@ -50,7 +50,13 @@ impl FrameSource {
                 last_frame,
                 ..
             } => {
-                if let Ok(frame) = receiver.recv_timeout(timeout) {
+                if let Ok(mut frame) = receiver.recv_timeout(timeout) {
+                    // DXGI can deliver frames faster than the encoder cadence.
+                    // Drain the queue and encode the newest frame so stale
+                    // frames never accumulate between recording ticks.
+                    while let Ok(newer) = receiver.try_recv() {
+                        frame = newer;
+                    }
                     let mut cached = last_frame
                         .lock()
                         .map_err(|_| "Frame cache poisoned".to_string())?;

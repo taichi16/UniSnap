@@ -5724,7 +5724,7 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "unisnap-windows"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "arboard",
  "base64 0.23.1",
@@ -5743,7 +5743,6 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-opener",
  "wasapi",
- "windows 0.62.2",
  "windows-sys 0.59.0",
  "xcap",
 ]
