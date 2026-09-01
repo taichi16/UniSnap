@@ -1,4 +1,19 @@
-# UniSnap-Windows
+# UniSnap
+
+## 正式版本與分支
+
+| 平台 | 正式分支 | 版本 | 說明 |
+| --- | --- | --- | --- |
+| Windows | [`windows-v2`](https://github.com/taichi16/UniSnap/tree/windows-v2) | [`windows-v2.0.0`](https://github.com/taichi16/UniSnap/releases/tag/windows-v2.0.0) | 最新 Windows V2 原始碼與安裝檔 |
+| macOS | [`macos-v2`](https://github.com/taichi16/UniSnap/tree/macos-v2) | V2 | macOS V2 原始碼 |
+
+`main` 用於專案首頁與跨平台版本導引。要下載 Windows 安裝檔，請前往 [Releases](https://github.com/taichi16/UniSnap/releases)；要查看 Windows 最新原始碼，請使用 `windows-v2`。
+
+### 歷史與實驗分支
+
+- `windows-support`：Windows V2 開發歷史分支；正式版本請改用 `windows-v2`。
+- `experiment/media-foundation`：錄影架構實驗分支，不是正式發行版。
+- `fix/bundle-ffmpeg`：舊版 FFmpeg 封裝修正分支，不是正式發行版。
 
 UniSnap 的 Windows 獨立專案。此目錄與 macOS 專案完全分離：
 
