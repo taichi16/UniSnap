@@ -12,14 +12,6 @@ pub enum FrameSource {
         receiver: mpsc::Receiver<Frame>,
         last_frame: Mutex<Option<Frame>>,
     },
-    /// Fallback for Windows systems where DXGI video capture is unavailable.
-    GdiDesktop {
-        x: i32,
-        y: i32,
-        width: u32,
-        height: u32,
-        fallback_monitor: Monitor,
-    },
     MonitorRegion {
         monitor: Monitor,
         region: CaptureRegion,
@@ -76,25 +68,6 @@ impl FrameSource {
                 let image = monitor
                     .capture_region(region.x, region.y, region.width, region.height)
                     .map_err(|e| format!("擷取錄影區域影格失敗：{e}"))?;
-                Ok(Some(Frame::new(
-                    image.width(),
-                    image.height(),
-                    image.into_raw(),
-                )))
-            }
-            Self::GdiDesktop {
-                x,
-                y,
-                width,
-                height,
-                fallback_monitor,
-            } => {
-                let image = crate::capture::capture_monitor_gdi(*x, *y, *width, *height)
-                    .or_else(|gdi_error| {
-                        fallback_monitor.capture_image().map_err(|xcap_error| {
-                            format!("Desktop capture failed (GDI: {gdi_error}; DXGI fallback: {xcap_error})")
-                        })
-                    })?;
                 Ok(Some(Frame::new(
                     image.width(),
                     image.height(),

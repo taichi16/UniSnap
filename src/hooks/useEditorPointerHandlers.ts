@@ -7,6 +7,16 @@ import type { Point, Shape, Tool, ArrowStyle } from "../editor/types";
 interface CropRect { x: number; y: number; w: number; h: number }
 interface TextInput { x: number; y: number; text: string }
 
+function isCaptureControlEvent(event: MouseEvent): boolean {
+  const selector = '[data-capture-interactive="true"]';
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(selector)) return true;
+  // WebView2 can retarget a mouse event to the canvas while a composited
+  // control is visually on top. Hit-test the current point as a second guard
+  // so clicking recording options can never replace the crop rectangle.
+  return document.elementFromPoint(event.clientX, event.clientY)?.closest(selector) != null;
+}
+
 export function useEditorPointerHandlers(options: {
   toCanvasPoint: (x: number, y: number) => Point;
   canvasRef: MutableRefObject<HTMLCanvasElement | null>;
@@ -45,6 +55,7 @@ export function useEditorPointerHandlers(options: {
   mode: string;
 }) {
   const handleMouseDown = useCallback((event: MouseEvent) => {
+    if (isCaptureControlEvent(event)) return;
     const clientPos = options.toCanvasPoint(event.clientX, event.clientY);
     if (!options.cropRect) {
       options.setIsSelecting(true);
@@ -92,6 +103,7 @@ export function useEditorPointerHandlers(options: {
   }, [options]);
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
+    if (isCaptureControlEvent(event)) return;
     const clientPos = options.toCanvasPoint(event.clientX, event.clientY);
     options.setMousePos({ x: event.clientX, y: event.clientY });
     if (options.isSelecting && options.cropRect) {
@@ -122,6 +134,7 @@ export function useEditorPointerHandlers(options: {
   }, [options]);
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
+    if (isCaptureControlEvent(event)) return;
     if ((options.isRecordMode || options.mode === "scroll") && options.isSelecting) {
       options.setCropRect(createSelectionRect(options.selectStart, options.toCanvasPoint(event.clientX, event.clientY)));
     }

@@ -44,6 +44,10 @@ export function useScrollCapture(options: {
     }
 
     await win.hide();
+    // `hide()` resolves before Windows DWM has necessarily composed the next
+    // desktop frame.  Give the overlay one frame to disappear before native
+    // window enumeration/capture, otherwise UniSnap can become its own target.
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
     try {
       const stitchedBase64 = await invoke<string>("auto_scroll_capture_window", {
         monitorIndex,

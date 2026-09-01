@@ -25,14 +25,20 @@ pub fn add_audio_track<W: Write + Seek>(
     writer: &mut Mp4Writer<W>,
     sample_rate: SampleFreqIndex,
     channels: ChannelConfig,
+    sample_rate_hz: u32,
 ) -> Result<(), String> {
+    let mut track_config = TrackConfig::from(AacConfig {
+        bitrate: 128_000,
+        profile: mp4::AudioObjectType::AacLowComplexity,
+        freq_index: sample_rate,
+        chan_conf: channels,
+    });
+    // AAC packet durations are counts of PCM frames (normally 1024), not
+    // integer milliseconds. A 1 kHz track clock truncates every 44.1 kHz
+    // packet and accumulates visible A/V drift, so use the real sample rate.
+    track_config.timescale = sample_rate_hz.max(1);
     writer
-        .add_track(&TrackConfig::from(AacConfig {
-            bitrate: 128_000,
-            profile: mp4::AudioObjectType::AacLowComplexity,
-            freq_index: sample_rate,
-            chan_conf: channels,
-        }))
+        .add_track(&track_config)
         .map_err(|e| format!("建立 MP4 麥克風音軌失敗：{e}"))
 }
 
@@ -58,28 +64,11 @@ pub fn write_sample<W: Write + Seek>(
         .map_err(|e| format!("寫入 MP4 sample 失敗：{e}"))
 }
 
-pub fn aac_packet_duration_ms(packet_duration: u32, sample_rate: u32) -> u32 {
-    if sample_rate == 0 {
-        return 1;
-    }
-    ((packet_duration as u64 * 1_000) / sample_rate as u64).max(1) as u32
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{aac_packet_duration_ms, write_sample};
+    use super::write_sample;
     use mp4::{Bytes, FourCC, Mp4Config, Mp4Writer};
     use std::io::Cursor;
-
-    #[test]
-    fn converts_aac_packet_duration_to_milliseconds() {
-        assert_eq!(aac_packet_duration_ms(1024, 48_000), 21);
-    }
-
-    #[test]
-    fn protects_against_zero_sample_rate() {
-        assert_eq!(aac_packet_duration_ms(1024, 0), 1);
-    }
 
     #[test]
     fn exposes_sample_writer_as_a_single_error_boundary() {

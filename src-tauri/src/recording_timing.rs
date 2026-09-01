@@ -25,7 +25,12 @@ impl RecordingClock {
         if now < self.next_frame_at {
             return false;
         }
-        self.next_frame_at = now + self.interval;
+        // Advance from the planned deadline, not from the time this frame
+        // happened to finish. Otherwise capture/crop/encode overhead is added
+        // to every 33 ms interval and a requested 30 FPS drifts toward 20 FPS.
+        while self.next_frame_at <= now {
+            self.next_frame_at += self.interval;
+        }
         true
     }
 

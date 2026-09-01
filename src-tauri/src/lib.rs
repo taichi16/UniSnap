@@ -8,18 +8,22 @@ mod platform;
 mod record;
 mod recording_audio;
 mod recording_crop;
+#[cfg(target_os = "windows")]
+mod recording_media_foundation;
 mod recording_mp4;
 mod recording_output;
 mod recording_session;
 mod recording_system_audio;
 mod recording_timing;
+#[cfg(target_os = "windows")]
+mod recording_wgc;
 mod scroll_composite;
 mod scroll_masks;
 mod scroll_matching;
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -203,6 +207,20 @@ fn unpin_screenshot(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // This must be the first plugin. A second process previously created
+        // another main window and interfered with an active capture flow.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let active_capture = app.webview_windows().into_iter().find(|(label, window)| {
+                (label.starts_with("capture_") || label.starts_with("recording_control_"))
+                    && window.is_visible().unwrap_or(false)
+            });
+            if let Some((_label, window)) = active_capture {
+                let _ = window.set_focus();
+            } else if let Some(main) = app.get_webview_window("main") {
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+        }))
         .manage(PinnedImageState(Mutex::new(HashMap::new())))
         .manage(ExitRequested(AtomicBool::new(false)))
         .manage(record::RecordingState::new())
@@ -298,8 +316,11 @@ pub fn run() {
             capture::capture_work_area,
             config::load_config,
             config::save_config,
+            recording_audio::list_audio_input_devices,
+            recording_audio::test_audio_input_device,
             record::start_recording,
             record::stop_recording,
+            record::get_recording_status,
             record::trigger_scroll_capture,
             capture::auto_scroll_capture_window,
             capture::cancel_scroll_capture,

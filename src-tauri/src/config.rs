@@ -16,6 +16,9 @@ pub struct AppConfig {
     pub theme: String,
     #[serde(default = "default_close_to_tray")]
     pub close_to_tray: bool,
+    /// None means follow the current Windows default input device.
+    #[serde(default)]
+    pub microphone_device_id: Option<String>,
 }
 
 fn default_theme() -> String {
@@ -24,6 +27,11 @@ fn default_theme() -> String {
 
 fn default_close_to_tray() -> bool {
     true
+}
+
+fn shortcuts_changed(previous: &AppConfig, next: &AppConfig) -> bool {
+    previous.shortcut_screenshot.trim() != next.shortcut_screenshot.trim()
+        || previous.shortcut_recording.trim() != next.shortcut_recording.trim()
 }
 
 impl Default for AppConfig {
@@ -42,6 +50,7 @@ impl Default for AppConfig {
             auto_copy_to_clipboard: true,
             theme: default_theme(),
             close_to_tray: default_close_to_tray(),
+            microphone_device_id: None,
         }
     }
 }
@@ -95,14 +104,42 @@ pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let path = get_config_path(&app)?;
     let previous = load_config(app.clone())?;
-    // Do not persist a shortcut Windows rejected because another application
-    // already owns it. Restore the old bindings before returning the error.
-    if let Err(error) = crate::apply_global_shortcuts(&app, &config) {
-        let _ = crate::apply_global_shortcuts(&app, &previous);
-        return Err(error);
+    // Re-register global shortcuts only when either shortcut was edited.
+    // Theme, save-path, audio and other unrelated settings must remain
+    // independently savable even when a shortcut is owned by another app.
+    if shortcuts_changed(&previous, &config) {
+        // Do not persist a shortcut Windows rejected because another
+        // application already owns it. Restore the old bindings first.
+        if let Err(error) = crate::apply_global_shortcuts(&app, &config) {
+            let _ = crate::apply_global_shortcuts(&app, &previous);
+            return Err(error);
+        }
     }
     let json =
         serde_json::to_string_pretty(&config).map_err(|e| format!("Serialize error: {}", e))?;
     fs::write(&path, json).map_err(|e| format!("Write config file error: {}", e))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{shortcuts_changed, AppConfig};
+
+    #[test]
+    fn theme_only_change_does_not_re_register_shortcuts() {
+        let previous = AppConfig::default();
+        let mut next = previous.clone();
+        next.theme = "light".to_string();
+
+        assert!(!shortcuts_changed(&previous, &next));
+    }
+
+    #[test]
+    fn shortcut_change_requires_re_registration() {
+        let previous = AppConfig::default();
+        let mut next = previous.clone();
+        next.shortcut_recording = "Alt+Shift+R".to_string();
+
+        assert!(shortcuts_changed(&previous, &next));
+    }
 }

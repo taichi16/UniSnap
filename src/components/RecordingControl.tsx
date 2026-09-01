@@ -3,6 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { CircleStop } from "lucide-react";
 
 type RecordingResult = { path: string; frameCount: number; width: number; height: number };
+type RecordingBackendStatus = {
+  phase: "idle" | "recording" | "finalizing" | "completed" | "failed";
+  result: RecordingResult | null;
+  error: string | null;
+};
 
 export default function RecordingControl() {
   const startedAtRef = useRef<number | null>(Date.now());
@@ -11,21 +16,38 @@ export default function RecordingControl() {
   const [status, setStatus] = useState<"recording" | "saving" | "saved" | "error">("recording");
   const [message, setMessage] = useState("");
 
+  const applyBackendStatus = useCallback((backendStatus: RecordingBackendStatus) => {
+    if (backendStatus.phase === "completed" && backendStatus.result) {
+      setStatus("saved");
+      setMessage(`已儲存：${backendStatus.result.path}`);
+      window.setTimeout(() => void invoke("close_capture_windows"), 1400);
+      return true;
+    }
+    if (backendStatus.phase === "failed") {
+      setStatus("error");
+      setMessage(`存檔失敗：${backendStatus.error ?? "未知錯誤"}`);
+      return true;
+    }
+    if (backendStatus.phase === "recording") {
+      setStatus("recording");
+    } else if (backendStatus.phase === "finalizing") {
+      setStatus("saving");
+    }
+    return false;
+  }, []);
+
   const stopRecording = useCallback(async () => {
     if (stoppingRef.current || startedAtRef.current === null) return;
     stoppingRef.current = true;
     setStatus("saving");
     try {
-      const result = await invoke<RecordingResult>("stop_recording");
-      setStatus("saved");
-      setMessage(`已儲存：${result.path}`);
-      window.setTimeout(() => void invoke("close_capture_windows"), 1400);
+      const backendStatus = await invoke<RecordingBackendStatus>("stop_recording");
+      applyBackendStatus(backendStatus);
     } catch (error) {
       setStatus("error");
       setMessage(`存檔失敗：${String(error)}`);
-      stoppingRef.current = false;
     }
-  }, []);
+  }, [applyBackendStatus]);
 
   useEffect(() => {
     const clock = window.setInterval(() => {
@@ -33,6 +55,33 @@ export default function RecordingControl() {
     }, 250);
     return () => { window.clearInterval(clock); };
   }, [stopRecording]);
+
+  useEffect(() => {
+    if (status !== "recording" && status !== "saving") return;
+    let disposed = false;
+    let polling = false;
+    const poll = async () => {
+      if (disposed || polling) return;
+      polling = true;
+      try {
+        const backendStatus = await invoke<RecordingBackendStatus>("get_recording_status");
+        if (!disposed) applyBackendStatus(backendStatus);
+      } catch (error) {
+        if (!disposed) {
+          setStatus("error");
+          setMessage(`無法取得存檔進度：${String(error)}`);
+        }
+      } finally {
+        polling = false;
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 500);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [status, applyBackendStatus]);
 
   const elapsed = new Date(seconds * 1000).toISOString().substring(14, 19);
   const label = status === "saving" ? "正在完成 MP4 存檔…" : status === "saved" || status === "error" ? message : `錄影中 ${elapsed}`;

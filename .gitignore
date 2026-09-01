@@ -11,3 +11,4 @@ src-tauri/gen/
 *.pdb
 *.msi
 *.exe
+.artifacts/

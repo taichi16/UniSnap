@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSnap 長畫布馬賽克回歸測試</title>
+    <style>
+      body { margin: 0; padding: 20px; background: #111827; color: #f9fafb; font: 16px system-ui; }
+      #status { position: sticky; top: 0; padding: 12px; background: #1f2937; }
+      canvas { display: block; width: 254px; height: auto; margin-top: 16px; border: 1px solid #4b5563; }
+    </style>
+  </head>
+  <body>
+    <div id="status">RUNNING</div>
+    <canvas id="result" width="845" height="6812"></canvas>
+    <script type="module">
+      import { drawMosaic } from "/src/editor/mosaic.ts";
+
+      const source = document.createElement("canvas");
+      source.width = 845;
+      source.height = 6812;
+      const sourceContext = source.getContext("2d", { willReadFrequently: true });
+      const target = document.querySelector("#result");
+      const targetContext = target.getContext("2d", { willReadFrequently: true });
+      const status = document.querySelector("#status");
+
+      sourceContext.fillStyle = "rgb(242, 246, 250)";
+      sourceContext.fillRect(0, 0, source.width, source.height);
+      sourceContext.fillStyle = "rgb(220, 70, 40)";
+      sourceContext.fillRect(100, 5900, 500, 500);
+      sourceContext.fillStyle = "rgb(40, 150, 210)";
+      for (let y = 5900; y < 6400; y += 20) {
+        for (let x = 100; x < 600; x += 20) {
+          if (((x + y) / 20) % 2 === 0) sourceContext.fillRect(x, y, 20, 20);
+        }
+      }
+      targetContext.drawImage(source, 0, 0);
+
+      drawMosaic(targetContext, source, 120, 6000, 440, 260, 20, target.width, target.height);
+      const pixel = targetContext.getImageData(300, 6120, 1, 1).data;
+      const notBlack = pixel[3] === 255 && (pixel[0] > 20 || pixel[1] > 20 || pixel[2] > 20);
+      status.textContent = notBlack ? `PASS rgba(${[...pixel].join(",")})` : `FAIL rgba(${[...pixel].join(",")})`;
+      status.dataset.result = notBlack ? "pass" : "fail";
+    </script>
+  </body>
+</html>

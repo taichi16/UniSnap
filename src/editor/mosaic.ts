@@ -10,49 +10,54 @@ export function drawMosaic(
   canvasWidth: number,
   canvasHeight: number,
 ): void {
-  const xStart = Math.min(rx, rx + rw);
-  const yStart = Math.min(ry, ry + rh);
-  const width = Math.abs(rw);
-  const height = Math.abs(rh);
-  if (width <= 0 || height <= 0 || size <= 0) return;
+  const xStart = Math.max(0, Math.floor(Math.min(rx, rx + rw)));
+  const yStart = Math.max(0, Math.floor(Math.min(ry, ry + rh)));
+  const xEnd = Math.min(canvasWidth, Math.ceil(Math.max(rx, rx + rw)));
+  const yEnd = Math.min(canvasHeight, Math.ceil(Math.max(ry, ry + rh)));
+  const width = xEnd - xStart;
+  const height = yEnd - yStart;
+  const blockSize = Math.max(1, Math.floor(size));
+  if (width <= 0 || height <= 0) return;
 
+  // Only allocate the down-sampled mosaic region. The previous implementation
+  // allocated a viewport-sized canvas and then read native long-screenshot
+  // coordinates from it; pixels below the viewport were transparent and were
+  // consequently rendered as black blocks.
   const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = canvasWidth;
-  tempCanvas.height = canvasHeight;
+  tempCanvas.width = Math.max(1, Math.ceil(width / blockSize));
+  tempCanvas.height = Math.max(1, Math.ceil(height / blockSize));
   const tempContext = tempCanvas.getContext("2d");
   if (!tempContext) return;
-  tempContext.drawImage(sourceImage, 0, 0, tempCanvas.width, tempCanvas.height);
 
-  let imageData: ImageData;
-  try {
-    imageData = tempContext.getImageData(xStart, yStart, width, height);
-  } catch (error) {
-    console.error("getImageData failed:", error);
-    return;
-  }
+  const dimensions = sourceImage as CanvasImageSource & {
+    naturalWidth?: number;
+    naturalHeight?: number;
+    videoWidth?: number;
+    videoHeight?: number;
+    width?: number;
+    height?: number;
+  };
+  const sourceWidth = dimensions.naturalWidth || dimensions.videoWidth || dimensions.width || canvasWidth;
+  const sourceHeight = dimensions.naturalHeight || dimensions.videoHeight || dimensions.height || canvasHeight;
+  const scaleX = sourceWidth / canvasWidth;
+  const scaleY = sourceHeight / canvasHeight;
 
-  const data = imageData.data;
-  for (let y = 0; y < height; y += size) {
-    for (let x = 0; x < width; x += size) {
-      let red = 0;
-      let green = 0;
-      let blue = 0;
-      let count = 0;
-      for (let dy = 0; dy < size && y + dy < height; dy++) {
-        for (let dx = 0; dx < size && x + dx < width; dx++) {
-          const index = ((y + dy) * width + (x + dx)) * 4;
-          if (index + 2 < data.length) {
-            red += data[index];
-            green += data[index + 1];
-            blue += data[index + 2];
-            count++;
-          }
-        }
-      }
-      if (count > 0) {
-        target.fillStyle = `rgb(${Math.round(red / count)},${Math.round(green / count)},${Math.round(blue / count)})`;
-        target.fillRect(xStart + x, yStart + y, Math.min(size, width - x), Math.min(size, height - y));
-      }
-    }
-  }
+  tempContext.imageSmoothingEnabled = true;
+  tempContext.imageSmoothingQuality = "high";
+  tempContext.drawImage(
+    sourceImage,
+    xStart * scaleX,
+    yStart * scaleY,
+    width * scaleX,
+    height * scaleY,
+    0,
+    0,
+    tempCanvas.width,
+    tempCanvas.height,
+  );
+
+  target.save();
+  target.imageSmoothingEnabled = false;
+  target.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, xStart, yStart, width, height);
+  target.restore();
 }

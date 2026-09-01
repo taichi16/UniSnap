@@ -19,8 +19,8 @@ export function useMosaicRenderer(imageRef: MutableRefObject<HTMLImageElement | 
       rw,
       rh,
       size,
-      window.innerWidth,
-      window.innerHeight,
+      ctx.canvas.width,
+      ctx.canvas.height,
     );
   }, [imageRef]);
 }

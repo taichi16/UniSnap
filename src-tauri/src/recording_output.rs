@@ -8,6 +8,9 @@ use tauri::AppHandle;
 pub fn recording_output_path(app: &AppHandle) -> Result<PathBuf, String> {
     let config = crate::config::load_config(app.clone()).unwrap_or_default();
     let directory = PathBuf::from(config.save_directory);
+    if directory.as_os_str().is_empty() {
+        return Err("錄影存檔資料夾未設定，請先在設定中選擇資料夾".to_string());
+    }
     fs::create_dir_all(&directory).map_err(|e| format!("無法建立錄影存檔資料夾：{e}"))?;
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)

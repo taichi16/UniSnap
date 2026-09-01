@@ -1,11 +1,12 @@
 {
   "name": "unisnap-windows",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run verify:ui-theme && tsc && vite build",
+    "verify:ui-theme": "node scripts/verify-ui-theme-contract.mjs",
     "verify:contracts": "node scripts/verify-command-contract.mjs",
     "preview": "vite preview",
     "tauri": "tauri"

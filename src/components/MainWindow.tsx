@@ -3,17 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { emit, listen } from "@tauri-apps/api/event";
 import { availableMonitors, getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon } from "lucide-react";
+import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon, Mic, X } from "lucide-react";
+import type { AudioInputDeviceInfo, AudioInputTestResult } from "../audio";
 
 interface AppConfig {
-  shortcut_screenshot: String;
-  shortcut_recording: String;
-  save_directory: String;
+  shortcut_screenshot: string;
+  shortcut_recording: string;
+  save_directory: string;
   remember_save_directory: boolean;
   jpg_quality: number;
   auto_copy_to_clipboard: boolean;
   theme: string;
   close_to_tray: boolean;
+  microphone_device_id: string | null;
 }
 
 interface MonitorInfo {
@@ -59,6 +61,7 @@ export default function MainWindow() {
     auto_copy_to_clipboard: true,
     theme: "dark",
     close_to_tray: true,
+    microphone_device_id: null,
   });
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -69,6 +72,33 @@ export default function MainWindow() {
   const [selectedMonitor, setSelectedMonitor] = useState(0);
   const [monitorError, setMonitorError] = useState<string | null>(null);
   const [screenPermissionError, setScreenPermissionError] = useState(false);
+  const [audioInputDevices, setAudioInputDevices] = useState<AudioInputDeviceInfo[]>([]);
+  const [microphoneStatus, setMicrophoneStatus] = useState<string | null>(null);
+  const [testingMicrophone, setTestingMicrophone] = useState(false);
+
+  useEffect(() => {
+    if (!showHelp && !showAbout) return;
+    const closeModal = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowHelp(false);
+        setShowAbout(false);
+      }
+    };
+    window.addEventListener("keydown", closeModal);
+    return () => window.removeEventListener("keydown", closeModal);
+  }, [showHelp, showAbout]);
+
+  const fetchAudioInputDevices = async () => {
+    try {
+      const devices = await invoke<AudioInputDeviceInfo[]>("list_audio_input_devices");
+      setAudioInputDevices(devices);
+      setMicrophoneStatus(devices.length ? null : "沒有偵測到麥克風");
+    } catch (error) {
+      console.error("Failed to list microphones:", error);
+      setAudioInputDevices([]);
+      setMicrophoneStatus(`無法讀取麥克風：${String(error)}`);
+    }
+  };
 
   const fetchMonitors = async () => {
     try {
@@ -112,6 +142,7 @@ export default function MainWindow() {
     }
     fetchConfig();
     fetchMonitors();
+    fetchAudioInputDevices();
 
     window.addEventListener("focus", fetchMonitors);
     return () => window.removeEventListener("focus", fetchMonitors);
@@ -128,6 +159,13 @@ export default function MainWindow() {
   useEffect(() => {
     document.documentElement.dataset.theme = config.theme || "dark";
   }, [config.theme]);
+
+  useEffect(() => {
+    if (!showSettings) return;
+    void fetchAudioInputDevices();
+    const timer = window.setInterval(() => void fetchAudioInputDevices(), 3000);
+    return () => window.clearInterval(timer);
+  }, [showSettings]);
 
 
   // Fix 6: Use static import instead of dynamic import to avoid CSP issues
@@ -166,13 +204,22 @@ export default function MainWindow() {
   };
 
   const toggleTheme = async () => {
-    const updated = { ...config, theme: config.theme === "light" ? "dark" : "light" };
+    const previous = config;
+    const nextTheme = config.theme === "light" ? "dark" : "light";
+    const updated = { ...config, theme: nextTheme };
+
+    // Apply immediately so the UI is not blocked by disk I/O. If persistence
+    // fails, restore the previous in-memory and DOM state together.
+    setConfig(updated);
+    document.documentElement.dataset.theme = nextTheme;
     try {
       await invoke("save_config", { config: updated });
-      setConfig(updated);
       await emit("config-updated");
     } catch (err) {
       console.error("Failed to save theme:", err);
+      setConfig(previous);
+      document.documentElement.dataset.theme = previous.theme || "dark";
+      showToast("主題設定儲存失敗");
     }
   };
 
@@ -197,12 +244,35 @@ export default function MainWindow() {
     }
   };
 
+  const testMicrophone = async () => {
+    if (testingMicrophone) return;
+    setTestingMicrophone(true);
+    setMicrophoneStatus("正在測試，請對麥克風說話…");
+    try {
+      const result = await invoke<AudioInputTestResult>("test_audio_input_device", {
+        deviceId: config.microphone_device_id,
+      });
+      const level = Math.round(result.peak * 100);
+      setMicrophoneStatus(result.hasSignal
+        ? `麥克風正常，偵測音量 ${level}%`
+        : "裝置已開啟，但未偵測到聲音；請確認靜音鍵與輸入音量");
+    } catch (error) {
+      setMicrophoneStatus(`測試失敗：${String(error)}`);
+    } finally {
+      setTestingMicrophone(false);
+    }
+  };
+
   // Hide frontend window first before invoking backend
   const hideAndInvoke = async (command: string, args?: Record<string, any>) => {
     setScreenPermissionError(false);
     try {
       const currentWin = getCurrentWindow();
       await currentWin.hide();
+      // Tauri confirms the hide request before DWM has published the updated
+      // desktop.  Native capture also enforces this wait; keeping a frontend
+      // frame boundary prevents fast machines from racing the command call.
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
       await invoke(command, args);
     } catch (err: any) {
       const currentWin = getCurrentWindow();
@@ -307,33 +377,37 @@ export default function MainWindow() {
           <ScrollText size={18} color="#8b5cf6" />
           <span>長截圖</span>
         </button>
-        {/* Every capture mode targets the monitor explicitly selected here. */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, flex: "0 0 150px", minWidth: 150 }}>
-          <Monitor size={16} color="#a5b4fc" />
-          <select
-            value={monitors.length ? selectedMonitor : ""}
-            onChange={(e) => setSelectedMonitor(parseInt(e.target.value))}
-            disabled={!monitors.length}
-            style={{
-              fontSize: 10,
-              background: "var(--panel-bg)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--panel-border)",
-              borderRadius: 4,
-              padding: "2px 4px",
-              cursor: "pointer",
-              width: "100%",
-              textAlign: "center",
-            }}
-            title="選擇要截圖的螢幕"
-          >
-            {!monitors.length && <option value="">{monitorError ?? "正在讀取螢幕…"}</option>}
+        {/* Direct buttons are easier to target than a truncated native select on multi-monitor PCs. */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, flex: "0 0 150px", minWidth: 150 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%" }}>
+            <Monitor size={15} color="#a5b4fc" />
             {monitors.map((m, i) => (
-              <option key={i} value={i}>
-                螢幕 {i + 1}：{m.name}（{m.width}×{m.height}）
-              </option>
+              <button
+                key={`${m.name}-${m.x}-${m.y}`}
+                type="button"
+                onClick={() => setSelectedMonitor(i)}
+                title={`螢幕 ${i + 1}：${m.name}，${m.width}×${m.height}，位置 (${m.x}, ${m.y})`}
+                aria-label={`選擇螢幕 ${i + 1}`}
+                style={{
+                  width: 27,
+                  height: 25,
+                  padding: 0,
+                  borderRadius: 5,
+                  border: selectedMonitor === i ? "2px solid #818cf8" : "1px solid var(--panel-border)",
+                  background: selectedMonitor === i ? "rgba(99,102,241,.28)" : "var(--panel-bg)",
+                  color: "var(--text-primary)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {i + 1}
+              </button>
             ))}
-          </select>
+          </div>
+          <span title={monitors[selectedMonitor]?.name} style={{ maxWidth: 148, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)", fontSize: 9 }}>
+            {monitors.length ? `螢幕 ${selectedMonitor + 1} · ${monitors[selectedMonitor]?.width}×${monitors[selectedMonitor]?.height}` : monitorError ?? "正在讀取螢幕…"}
+          </span>
           {monitorError && (
             <button type="button" onClick={fetchMonitors} style={{ border: 0, background: "transparent", color: "#fca5a5", fontSize: 9, cursor: "pointer" }}>
               重新讀取
@@ -354,35 +428,20 @@ export default function MainWindow() {
         <main className="main-content" style={{ marginTop: 12, flex: 1, overflowY: "auto" }}>
           <div className="utility-grid">
           <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowHelp(!showHelp)}>
+              <button className="help-toggle" onClick={() => setShowHelp(true)}>
                 <CircleHelp size={17} />
                 <span>使用說明</span>
-                <span className="help-chevron">{showHelp ? "收合" : "展開"}</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showHelp && <div className="help-grid">
-              <p><strong>圖片編輯：</strong>按「開啟圖片」載入既有圖片；使用裁切框調整範圍，或按擴增畫布加入四周空白，再搭配標註工具編修。</p>
-              <p><strong>截圖：</strong>選擇矩形截圖、全螢幕或工作區，再拖曳選取範圍。</p>
-              <p><strong>長截圖：</strong>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；若畫面有多個捲動區域，只選主要內容區。開始後請不要移動滑鼠或操作其他視窗，等待畫面完成捲動與拼接；截圖中若要中止請將滑鼠移開選取區域。</p>
-              <p><strong>錄影：</strong>框選區域後選擇 FPS、麥克風與系統聲音，再按開始錄影；系統聲音會擷取 Windows 預設輸出裝置。</p>
-              <p><strong>儲存：</strong>在編輯工具列選擇 PNG 或 JPG，再按下載圖示另存新檔。</p>
-              <p><strong>取消：</strong>一般截圖可按 Esc；長截圖請按畫面上的「取消」按鈕；錄影請按浮動控制列的停止並存檔。</p>
-            </div>}
+              <p className="help-summary">截圖、長截圖、錄影、圖片編輯與快捷鍵的操作方式</p>
           </section>
           <section className="settings-section help-section">
-              <button className="help-toggle" onClick={() => setShowAbout(!showAbout)}>
+              <button className="help-toggle" onClick={() => setShowAbout(true)}>
                 <BarChart3 size={17} />
-                <span>關於</span>
-                <span className="help-chevron">{showAbout ? "收合" : "查看"}</span>
+                <span>關於 UniSnap</span>
+                <span className="help-chevron">查看</span>
               </button>
-            {showAbout && <div className="about-panel">
-              <h3>UniSnap V 1.0</h3>
-              <p>UniSnap 是一套跨平台的螢幕截圖、長截圖與螢幕錄影工具，從需求規劃、介面設計到多螢幕與媒體處理逐步整合完成。</p>
-              <p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p>
-              <p><strong>平台整合：</strong>Windows 螢幕擷取、剪貼簿與錄影架構。</p>
-              <p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p>
-              <p><strong>作者：</strong>YuJhao Wang</p>
-              <p><strong>版本：</strong>V 1.0</p>
-            </div>}
+              <p className="help-summary">版本、作者、技術架構與 UniSnap 開發歷程</p>
           </section>
           </div>
           {/* Save Folder Settings */}
@@ -440,6 +499,46 @@ export default function MainWindow() {
 
           <section className="settings-section">
             <h2 className="section-title">
+              <Mic size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              錄音裝置
+            </h2>
+            <div className="form-group">
+              <label>錄影使用的麥克風</label>
+              <div className="input-row">
+                <select
+                  value={config.microphone_device_id ?? ""}
+                  onChange={(event) => {
+                    const updated = {
+                      ...config,
+                      microphone_device_id: event.target.value || null,
+                    };
+                    setConfig(updated);
+                    void saveSettings(updated);
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">跟隨 Windows 預設裝置</option>
+                  {audioInputDevices.map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.name}{device.isDefault ? "（目前預設）" : ""} · {device.channels} 聲道 · {device.sampleRate} Hz
+                    </option>
+                  ))}
+                </select>
+                <button className="btn" onClick={() => void fetchAudioInputDevices()}>重新偵測</button>
+                <button className="btn" onClick={() => void testMicrophone()} disabled={testingMicrophone}>
+                  {testingMicrophone ? "測試中…" : "測試"}
+                </button>
+              </div>
+              {microphoneStatus && (
+                <span style={{ display: "block", marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+                  {microphoneStatus}
+                </span>
+              )}
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <h2 className="section-title">
               <Settings size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
               常規設定
             </h2>
@@ -492,6 +591,60 @@ export default function MainWindow() {
           </section>
 
         </main>
+      )}
+
+      {showHelp && (
+        <div className="info-modal-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}>
+          <section
+            className="info-modal info-modal-wide"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="help-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="info-modal-header">
+              <h2 id="help-modal-title">使用說明</h2>
+              <button className="info-modal-close" type="button" aria-label="關閉使用說明" onClick={() => setShowHelp(false)}>
+                <X size={20} />
+              </button>
+            </header>
+            <div className="info-modal-body help-modal-content">
+              <div><h3>一般截圖</h3><p>選擇矩形截圖、全螢幕或工作區。矩形截圖請拖曳選取範圍；完成後可使用編輯工具列標註、複製或儲存。</p></div>
+              <div><h3>長截圖</h3><p>先框選同一個可捲動內容區，再按「開始長截圖」。框選時不要包含瀏覽器分頁列、網址列、捲軸、固定側欄、浮動輸入框或懸浮按鈕；開始後請不要操作其他視窗，等待捲動與拼接完成。</p></div>
+              <div><h3>螢幕錄影</h3><p>框選錄影區域後，選擇 FPS、麥克風及系統聲音，再按「開始錄影」。完成時按浮動控制列的「停止並存檔」。</p></div>
+              <div><h3>圖片編輯</h3><p>開啟圖片可載入 PNG、JPG 或 JPEG；可裁切、擴增四周空白，並使用畫筆、形狀、箭頭、馬賽克、文字與 OCR。</p></div>
+              <div><h3>快捷鍵與取消</h3><p>一般截圖可按 Escape 取消；長截圖使用畫面上的「取消」按鈕。截圖與錄影快捷鍵可在設定中重新輸入。</p></div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showAbout && (
+        <div className="info-modal-backdrop" role="presentation" onMouseDown={() => setShowAbout(false)}>
+          <section
+            className="info-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="about-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="info-modal-header">
+              <h2 id="about-modal-title">關於 UniSnap</h2>
+              <button className="info-modal-close" type="button" aria-label="關閉關於視窗" onClick={() => setShowAbout(false)}>
+                <X size={20} />
+              </button>
+            </header>
+            <div className="info-modal-body about-modal-content">
+              <h3>UniSnap V 2.0</h3>
+              <p>UniSnap 是 Windows 11 螢幕截圖、長截圖、圖片編輯與螢幕錄影工具，從需求規劃、介面設計到多螢幕與媒體處理逐步整合完成。</p>
+              <p><strong>開發工具：</strong>Tauri、Rust、React、TypeScript、Vite。</p>
+              <p><strong>Windows 整合：</strong>桌面擷取、剪貼簿、Media Foundation 與音訊裝置。</p>
+              <p><strong>AI 協作工具：</strong>Antigravity IDE 與 ChatGPT。</p>
+              <p><strong>作者：</strong>YuJhao Wang</p>
+              <p><strong>版本：</strong>V 2.0</p>
+            </div>
+          </section>
+        </div>
       )}
 
       {screenPermissionError && (

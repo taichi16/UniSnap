@@ -4,19 +4,94 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use enigo::{Axis, Coordinate, Enigo, Mouse, Settings};
 use image::RgbaImage;
 use std::io::Cursor;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use xcap::Monitor;
+
+static CAPTURE_WINDOW_LAUNCHING: AtomicBool = AtomicBool::new(false);
+static SCROLL_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+const WINDOWS_CAPTURE_SURFACE_SETTLE_MS: u64 = 140;
+
+struct CaptureLaunchGuard;
+
+impl Drop for CaptureLaunchGuard {
+    fn drop(&mut self) {
+        CAPTURE_WINDOW_LAUNCHING.store(false, Ordering::Release);
+    }
+}
+
+struct ScrollCaptureGuard;
+
+impl ScrollCaptureGuard {
+    fn acquire() -> Result<Self, String> {
+        SCROLL_CAPTURE_ACTIVE
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map(|_| Self)
+            .map_err(|_| "長截圖已在執行中，請勿重複啟動".to_string())
+    }
+}
+
+impl Drop for ScrollCaptureGuard {
+    fn drop(&mut self) {
+        SCROLL_CAPTURE_ACTIVE.store(false, Ordering::Release);
+    }
+}
+
+fn wait_for_capture_surface_to_hide(app: &tauri::AppHandle, hide_main: bool) {
+    if hide_main {
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.hide();
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    std::thread::sleep(std::time::Duration::from_millis(
+        WINDOWS_CAPTURE_SURFACE_SETTLE_MS,
+    ));
+    #[cfg(not(target_os = "windows"))]
+    std::thread::sleep(std::time::Duration::from_millis(40));
+}
+
+fn is_unisnap_window(app_name: &str, title: &str) -> bool {
+    let app = app_name.to_ascii_lowercase();
+    let title = title.to_ascii_lowercase();
+    app.contains("unisnap") || title.contains("unisnap") || title.starts_with("capture window")
+}
+
+fn xcap_window_coordinate_scale(monitor_scale: f64) -> f64 {
+    // On Windows this process is per-monitor DPI aware, so xcap/Win32 window
+    // bounds are already physical desktop pixels.  Scaling those values again
+    // shifts the target and crop on 125%/150% displays.
+    #[cfg(target_os = "windows")]
+    {
+        let _ = monitor_scale;
+        1.0
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        monitor_scale
+    }
+}
+
+fn capture_window_route(label: &str, mode: &str) -> String {
+    format!("index.html#/capture?label={label}&mode={mode}")
+}
 
 pub fn log_backend(msg: &str) {
     println!("{}", msg);
     use std::fs::OpenOptions;
     use std::io::Write;
-    if let Ok(mut file) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("backend.log")
-    {
+    let log_path = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .map(|directory| directory.join("UniSnap").join("backend.log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("backend.log"));
+    if let Some(directory) = log_path.parent() {
+        let _ = std::fs::create_dir_all(directory);
+    }
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
         let _ = writeln!(file, "{}", msg);
     }
 }
@@ -140,8 +215,23 @@ pub fn trigger_screenshot(
     mode: Option<String>,
     monitor_index: Option<usize>,
 ) -> Result<(), String> {
+    // Ignore key-repeat and duplicate clicks while a capture overlay exists or
+    // another overlay is still being created. Concurrent WebView2 builders can
+    // otherwise leave an opaque about:blank window over the desktop.
+    if app
+        .webview_windows()
+        .iter()
+        .any(|(label, _)| label.starts_with("capture_"))
+    {
+        return Ok(());
+    }
+    if CAPTURE_WINDOW_LAUNCHING.swap(true, Ordering::AcqRel) {
+        return Ok(());
+    }
+
     log_backend("[capture] trigger_screenshot command received. Spawning background task to prevent GUI deadlock.");
     tauri::async_runtime::spawn(async move {
+        let _launch_guard = CaptureLaunchGuard;
         let state = app.state::<crate::PinnedImageState>();
         if let Err(e) = trigger_screenshot_impl(app.clone(), state, mode, monitor_index) {
             log_backend(&format!(
@@ -159,8 +249,10 @@ fn trigger_screenshot_impl(
     mode: Option<String>,
     monitor_index: Option<usize>,
 ) -> Result<(), String> {
-    // Ultra-low latency: 40ms is plenty for the window hide animation on macOS
-    std::thread::sleep(std::time::Duration::from_millis(40));
+    // Hiding a WebView is asynchronous relative to the Windows desktop
+    // compositor.  Enforce the hide in native code and wait before GDI BitBlt,
+    // so the UniSnap toolbar cannot be baked into the source screenshot.
+    wait_for_capture_surface_to_hide(&app, true);
 
     let mode_str = mode.unwrap_or_else(|| "screenshot".to_string());
     let timestamp = std::time::SystemTime::now()
@@ -317,25 +409,11 @@ fn trigger_screenshot_impl(
             map.insert(label.clone(), data_url);
         }
 
-        // Dynamically resolve URL using main window's exact origin to guarantee dev server compatibility
-        let main_win = app.get_webview_window("main");
-        let window_url = if let Some(ref mw) = main_win {
-            if let Ok(u) = mw.url() {
-                log_backend(&format!(
-                    "[capture] Resolved child window URL from main window: {}",
-                    u
-                ));
-                tauri::WebviewUrl::External(u)
-            } else {
-                log_backend(
-                    "[capture] Failed to get main window URL, falling back to WebviewUrl::App",
-                );
-                tauri::WebviewUrl::App("index.html".into())
-            }
-        } else {
-            log_backend("[capture] Main window not found, falling back to WebviewUrl::App");
-            tauri::WebviewUrl::App("index.html".into())
-        };
+        // Load a deterministic application route. Reusing the main window's
+        // external URL can strand a release WebView at about:blank when a
+        // global shortcut creates it while the main window is hidden.
+        let route = capture_window_route(&label, &mode_str);
+        let window_url = WebviewUrl::App(route.clone().into());
 
         let logical_x = phys_x as f64 / scale_factor;
         let logical_y = phys_y as f64 / scale_factor;
@@ -346,6 +424,8 @@ fn trigger_screenshot_impl(
             label, logical_x, logical_y, logical_w, logical_h
         ));
 
+        let page_loaded = Arc::new(AtomicBool::new(false));
+        let page_loaded_from_webview = Arc::clone(&page_loaded);
         let win = tauri::WebviewWindowBuilder::new(&app, &label, window_url)
             .title(format!("Capture Window {}", index))
             .decorations(false)
@@ -353,25 +433,59 @@ fn trigger_screenshot_impl(
             .transparent(false)
             .resizable(false)
             .focused(true)
+            .visible(false)
             .accept_first_mouse(true)
             .inner_size(logical_w, logical_h)
             .position(logical_x, logical_y)
+            .on_page_load(move |_window, payload| {
+                if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                    page_loaded_from_webview.store(true, Ordering::Release);
+                }
+            })
             .build()
             .map_err(|e| {
                 log_backend(&format!("[capture] Error building window: {}", e));
                 format!("Failed to build capture window: {}", e)
             })?;
 
+        // React shows the overlay only after the screenshot has decoded. If
+        // initialisation fails, remove the still-hidden overlay and restore the
+        // main window instead of covering or trapping the desktop.
+        let watchdog_window = win.clone();
+        let watchdog_app = app.clone();
+        let watchdog_page_loaded = Arc::clone(&page_loaded);
+        tauri::async_runtime::spawn(async move {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            // Visibility is not a readiness signal: starting a recording
+            // deliberately hides this window. Only a WebView that never
+            // finished loading should trigger recovery.
+            if !watchdog_page_loaded.load(Ordering::Acquire) {
+                let _ = watchdog_window.close();
+                if let Some(main) = watchdog_app.get_webview_window("main") {
+                    let _ = main.show();
+                    let _ = main.set_focus();
+                }
+                log_backend("[capture] capture window readiness timeout; restored main window");
+            }
+        });
+
         if let Ok(u) = win.url() {
             log_backend(&format!(
-                "[capture] WebviewWindow '{}' built successfully. Target URL: {}",
-                label, u
+                "[capture] WebviewWindow '{}' built successfully. Route: {} Target URL: {}",
+                label, route, u
             ));
         }
 
-        // In debug builds, open DevTools automatically so we can inspect console output.
+        // Keep development builds visually identical to packaged builds. DevTools
+        // may cover the capture target and would then be recorded. Developers can
+        // opt in explicitly for a diagnostic session when it is actually needed.
         #[cfg(debug_assertions)]
-        win.open_devtools();
+        if matches!(
+            std::env::var("UNISNAP_OPEN_DEVTOOLS").as_deref(),
+            Ok("1") | Ok("true")
+        ) {
+            win.open_devtools();
+        }
     }
 
     Ok(())
@@ -617,8 +731,12 @@ pub fn open_recording_control(
         .or_else(|| monitors.first())
         .ok_or_else(|| "No monitor found for recording control".to_string())?;
     let scale = monitor.scale_factor();
-    let position_x = monitor.position().x as f64 / scale + 24.0;
-    let position_y = monitor.position().y as f64 / scale + 24.0;
+    let monitor_width = monitor.size().width as f64 / scale;
+    let monitor_height = monitor.size().height as f64 / scale;
+    let (local_x, local_y) =
+        recording_control_position(x, y, width, height, monitor_width, monitor_height);
+    let position_x = monitor.position().x as f64 / scale + local_x;
+    let position_y = monitor.position().y as f64 / scale + local_y;
 
     let capture_label = app
         .webview_windows()
@@ -652,6 +770,17 @@ pub fn open_recording_control(
     control
         .set_always_on_top(true)
         .map_err(|e| format!("無法將錄影控制列置頂：{e}"))?;
+    #[cfg(target_os = "windows")]
+    match exclude_window_from_capture(&control) {
+        Ok(()) => log_backend("[capture] recording control excluded from Windows capture"),
+        Err(error) => {
+            // Positioning outside the selected rectangle remains the fallback
+            // on Windows editions or drivers that reject display affinity.
+            log_backend(&format!(
+                "[capture] recording control exclusion unavailable; using outside-region fallback: {error}"
+            ));
+        }
+    }
     control
         .show()
         .map_err(|e| format!("無法顯示錄影控制列：{e}"))?;
@@ -663,7 +792,69 @@ pub fn open_recording_control(
         capture_label
     );
 
-    let _ = (x, y, width, height, fps, record_audio);
+    let _ = (fps, record_audio);
+    Ok(())
+}
+
+const RECORDING_CONTROL_WIDTH: f64 = 300.0;
+const RECORDING_CONTROL_HEIGHT: f64 = 58.0;
+const RECORDING_CONTROL_MARGIN: f64 = 12.0;
+
+fn recording_control_position(
+    selection_x: f64,
+    selection_y: f64,
+    selection_width: f64,
+    selection_height: f64,
+    monitor_width: f64,
+    monitor_height: f64,
+) -> (f64, f64) {
+    let max_x = (monitor_width - RECORDING_CONTROL_WIDTH).max(0.0);
+    let max_y = (monitor_height - RECORDING_CONTROL_HEIGHT).max(0.0);
+    let aligned_x = selection_x.clamp(0.0, max_x);
+    let aligned_y = selection_y.clamp(0.0, max_y);
+
+    if selection_y >= RECORDING_CONTROL_HEIGHT + RECORDING_CONTROL_MARGIN {
+        return (
+            aligned_x,
+            selection_y - RECORDING_CONTROL_HEIGHT - RECORDING_CONTROL_MARGIN,
+        );
+    }
+    let below = selection_y + selection_height + RECORDING_CONTROL_MARGIN;
+    if below + RECORDING_CONTROL_HEIGHT <= monitor_height {
+        return (aligned_x, below);
+    }
+    if selection_x >= RECORDING_CONTROL_WIDTH + RECORDING_CONTROL_MARGIN {
+        return (
+            selection_x - RECORDING_CONTROL_WIDTH - RECORDING_CONTROL_MARGIN,
+            aligned_y,
+        );
+    }
+    let right = selection_x + selection_width + RECORDING_CONTROL_MARGIN;
+    if right + RECORDING_CONTROL_WIDTH <= monitor_width {
+        return (right, aligned_y);
+    }
+
+    // A full-screen or nearly full-screen selection leaves no outside space.
+    // The native exclusion flag is the primary protection in this case.
+    (12.0_f64.min(max_x), 12.0_f64.min(max_y))
+}
+
+#[cfg(target_os = "windows")]
+fn exclude_window_from_capture(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
+    };
+
+    let hwnd = window
+        .hwnd()
+        .map_err(|error| format!("無法取得錄影控制列原生視窗：{error}"))?;
+    let applied = unsafe { SetWindowDisplayAffinity(hwnd.0 as _, WDA_EXCLUDEFROMCAPTURE) };
+    if applied == 0 {
+        return Err(format!(
+            "Windows 無法排除錄影控制列：{}",
+            std::io::Error::last_os_error()
+        ));
+    }
     Ok(())
 }
 
@@ -700,13 +891,18 @@ pub fn open_recording_start_control(
         .as_millis();
     let label = format!("recording_start_control_{timestamp}");
     let scale = monitor.scale_factor();
-    let control = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
+    let canvas_width = (monitor.size().width as f64 / scale).round().max(1.0) as u32;
+    let canvas_height = (monitor.size().height as f64 / scale).round().max(1.0) as u32;
+    let url = format!(
+        "index.html#/recording-start-control?monitorIndex={monitor_index}&x={x}&y={y}&width={width}&height={height}&canvasWidth={canvas_width}&canvasHeight={canvas_height}&fps={fps}&recordAudio={record_audio}&recordSystemAudio={record_system_audio}"
+    );
+    let control = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title("開始錄影")
         .decorations(false)
         .always_on_top(true)
         .focused(true)
         .resizable(false)
-        .inner_size(330.0, 58.0)
+        .inner_size(680.0, 58.0)
         .position(
             monitor.position().x as f64 / scale + 24.0,
             monitor.position().y as f64 / scale + 58.0,
@@ -817,8 +1013,12 @@ pub fn save_and_copy_screenshot(
                 .join("Screenshots")
         };
 
+        if default_dir.as_os_str().is_empty() {
+            return Err("預設存檔資料夾未設定，請先在設定中選擇可寫入的資料夾".to_string());
+        }
         if !default_dir.exists() {
-            let _ = std::fs::create_dir_all(&default_dir);
+            std::fs::create_dir_all(&default_dir)
+                .map_err(|e| format!("無法建立預設存檔資料夾：{e}"))?;
         }
 
         let timestamp = std::time::SystemTime::now()
@@ -912,8 +1112,6 @@ pub fn copy_screenshot_to_clipboard(base64_image: String) -> Result<(), String> 
     eprintln!("[clipboard] set_image ok");
     Ok(())
 }
-
-use std::sync::atomic::{AtomicBool, Ordering};
 
 static SCROLL_CANCELLED: AtomicBool = AtomicBool::new(false);
 
@@ -1225,7 +1423,12 @@ pub fn auto_scroll_capture_window(
     selection_width: f64,
     selection_height: f64,
 ) -> Result<String, String> {
+    let _capture_guard = ScrollCaptureGuard::acquire()?;
     SCROLL_CANCELLED.store(false, Ordering::SeqCst);
+
+    // The capture overlay initiated this command after hiding itself.  Wait
+    // for DWM to publish that state before looking for the window underneath.
+    wait_for_capture_surface_to_hide(&app, false);
 
     let tauri_monitors = app
         .available_monitors()
@@ -1275,6 +1478,7 @@ pub fn auto_scroll_capture_window(
     let global_selection_height = selection.height;
 
     let windows = xcap::Window::all().map_err(|e| format!("Failed to list windows: {}", e))?;
+    let window_coordinate_scale = xcap_window_coordinate_scale(scale_factor);
 
     // Find window under the center point of selection to prevent adjacent window mismatch
     let center_x = global_selection_x + global_selection_width as i32 / 2;
@@ -1289,18 +1493,17 @@ pub fn auto_scroll_capture_window(
             || app == "GeForce Experience"
             || app == "Steam"
             || title.contains("Overlay")
-            || title.starts_with("Capture Window")
-            || title.starts_with("unisnap-windows")
+            || is_unisnap_window(&app, &title)
         {
             return false;
         }
         if let (Ok(wx), Ok(wy), Ok(ww), Ok(wh), Ok(min)) =
             (w.x(), w.y(), w.width(), w.height(), w.is_minimized())
         {
-            let phys_wx = (wx as f64 * scale_factor) as i32;
-            let phys_wy = (wy as f64 * scale_factor) as i32;
-            let phys_ww = (ww as f64 * scale_factor) as i32;
-            let phys_wh = (wh as f64 * scale_factor) as i32;
+            let phys_wx = (wx as f64 * window_coordinate_scale).round() as i32;
+            let phys_wy = (wy as f64 * window_coordinate_scale).round() as i32;
+            let phys_ww = (ww as f64 * window_coordinate_scale).round() as i32;
+            let phys_wh = (wh as f64 * window_coordinate_scale).round() as i32;
 
             if min || phys_ww < 200 || phys_wh < 200 {
                 return false;
@@ -1346,8 +1549,8 @@ pub fn auto_scroll_capture_window(
 
     let win_x = win.x().map_err(|e| e.to_string())?;
     let win_y = win.y().map_err(|e| e.to_string())?;
-    let phys_win_x = (win_x as f64 * scale_factor) as i32;
-    let phys_win_y = (win_y as f64 * scale_factor) as i32;
+    let phys_win_x = (win_x as f64 * window_coordinate_scale).round() as i32;
+    let phys_win_y = (win_y as f64 * window_coordinate_scale).round() as i32;
     let crop_x = global_selection_x.saturating_sub(phys_win_x) as u32;
     let crop_y = global_selection_y.saturating_sub(phys_win_y) as u32;
     let crop_frame = |frame: RgbaImage| -> Result<RgbaImage, String> {
@@ -1370,7 +1573,7 @@ pub fn auto_scroll_capture_window(
         )
     };
     log_backend(&format!(
-        "[scroll] selection logical=({},{} {}x{}) scale={:.3} global=({},{} {}x{}) window_origin_logical=({},{}), window_origin_phys=({},{}), crop=({},{} {}x{})",
+        "[scroll] selection logical=({},{} {}x{}) overlay_scale={:.3} global=({},{} {}x{}) window_origin_xcap=({},{}), window_scale={:.3}, window_origin_phys=({},{}), crop=({},{} {}x{})",
         selection_x,
         selection_y,
         selection_width,
@@ -1382,6 +1585,7 @@ pub fn auto_scroll_capture_window(
         global_selection_height,
         win_x,
         win_y,
+        window_coordinate_scale,
         phys_win_x,
         phys_win_y,
         crop_x,
@@ -1448,7 +1652,10 @@ pub fn auto_scroll_capture_window(
             }
             next_frame = candidate;
         }
-        eprintln!("[scroll] step={} settle_attempts={}", step, settle_attempts);
+        log_backend(&format!(
+            "[scroll] step={} settle_attempts={}",
+            step, settle_attempts
+        ));
         if next_frame.dimensions() != previous_frame.dimensions() {
             return Err("Target window size changed during long capture".to_string());
         }
@@ -1485,10 +1692,10 @@ pub fn auto_scroll_capture_window(
             ));
             frames.push(next_frame.clone());
             frame_offsets.push(next_offset);
-            eprintln!(
+            log_backend(&format!(
                 "[scroll] step={} shift={} offset={} frame={}x{}",
                 step, shift, next_offset, frame_width, frame_height
-            );
+            ));
             total_height = next_total_height;
             previous_frame = next_frame;
         } else {
@@ -1536,8 +1743,10 @@ pub fn auto_scroll_capture_window(
 #[cfg(test)]
 mod capture_tests {
     use super::{
-        classify_scroll_target, find_scroll_shift, find_scroll_shift_near, fixed_column_mask,
-        fixed_row_mask, frames_are_stable, work_area_crop_bounds, ScrollCaptureStrategy,
+        capture_window_route, classify_scroll_target, find_scroll_shift, find_scroll_shift_near,
+        fixed_column_mask, fixed_row_mask, frames_are_stable, is_unisnap_window,
+        recording_control_position, work_area_crop_bounds, xcap_window_coordinate_scale,
+        ScrollCaptureStrategy,
     };
     use crate::capture_geometry::CropBounds;
     use image::{imageops::crop_imm, Rgba, RgbaImage};
@@ -1551,6 +1760,49 @@ mod capture_tests {
                 255,
             ])
         })
+    }
+
+    #[test]
+    fn capture_window_route_carries_label_and_mode_without_external_navigation() {
+        assert_eq!(
+            capture_window_route("capture_record_0_123", "record"),
+            "index.html#/capture?label=capture_record_0_123&mode=record"
+        );
+    }
+
+    #[test]
+    fn own_windows_are_never_long_capture_targets() {
+        assert!(is_unisnap_window("unisnap-windows.exe", "UniSnap"));
+        assert!(is_unisnap_window("msedgewebview2.exe", "Capture Window 1"));
+        assert!(!is_unisnap_window("chrome.exe", "購物網站 - Google Chrome"));
+    }
+
+    #[test]
+    fn windows_xcap_bounds_are_not_scaled_twice_on_high_dpi_displays() {
+        #[cfg(target_os = "windows")]
+        assert_eq!(xcap_window_coordinate_scale(1.5), 1.0);
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(xcap_window_coordinate_scale(1.5), 1.5);
+    }
+
+    #[test]
+    fn recording_control_prefers_space_outside_selection() {
+        assert_eq!(
+            recording_control_position(200.0, 200.0, 800.0, 500.0, 1920.0, 1080.0),
+            (200.0, 130.0)
+        );
+        assert_eq!(
+            recording_control_position(40.0, 20.0, 800.0, 500.0, 1920.0, 1080.0),
+            (40.0, 532.0)
+        );
+    }
+
+    #[test]
+    fn recording_control_stays_on_monitor_for_full_screen_selection() {
+        assert_eq!(
+            recording_control_position(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1080.0),
+            (12.0, 12.0)
+        );
     }
 
     #[test]
@@ -1731,12 +1983,12 @@ pub fn capture_full_screen(
     );
     let save_path = std::path::PathBuf::from(&config.save_directory).join(default_name);
     let path_str = save_path.to_string_lossy().to_string();
-    let _ = save_and_copy_screenshot(
+    save_and_copy_screenshot(
         app.clone(),
         base64_image,
         Some(path_str.clone()),
         config.auto_copy_to_clipboard,
-    );
+    )?;
     Ok(path_str)
 }
 
@@ -1823,12 +2075,12 @@ pub fn capture_work_area(
     );
     let save_path = std::path::PathBuf::from(&config.save_directory).join(default_name);
     let path_str = save_path.to_string_lossy().to_string();
-    let _ = save_and_copy_screenshot(
+    save_and_copy_screenshot(
         app.clone(),
         base64_image,
         Some(path_str.clone()),
         config.auto_copy_to_clipboard,
-    );
+    )?;
     Ok(path_str)
 }
 

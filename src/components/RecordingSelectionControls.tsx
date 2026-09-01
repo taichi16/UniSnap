@@ -1,8 +1,13 @@
+import type { AudioInputDeviceInfo } from "../audio";
+
 interface RecordingSelectionControlsProps {
   recordAudio: boolean;
   onRecordAudioChange: (enabled: boolean) => void;
   recordSystemAudio: boolean;
   onRecordSystemAudioChange: (enabled: boolean) => void;
+  audioInputDevices: AudioInputDeviceInfo[];
+  microphoneDeviceId: string;
+  onMicrophoneDeviceChange: (deviceId: string) => void;
   fps: number;
   onFpsChange: (fps: number) => void;
   isStarting: boolean;
@@ -15,6 +20,9 @@ export default function RecordingSelectionControls({
   onRecordAudioChange,
   recordSystemAudio,
   onRecordSystemAudioChange,
+  audioInputDevices,
+  microphoneDeviceId,
+  onMicrophoneDeviceChange,
   fps,
   onFpsChange,
   isStarting,
@@ -23,15 +31,35 @@ export default function RecordingSelectionControls({
 }: RecordingSelectionControlsProps) {
   return (
     <div
-      style={{ position: "fixed", top: 58, right: 24, zIndex: 1_000_000, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "rgba(25,25,32,.98)", border: "1px solid rgba(99,102,241,.9)", boxShadow: "0 8px 24px rgba(0,0,0,.42)", color: "#fff", fontFamily: "system-ui,sans-serif", pointerEvents: "auto" }}
+      data-capture-interactive="true"
+      style={{ position: "fixed", top: 58, right: 24, zIndex: 1_000_000, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 10, maxWidth: "calc(100vw - 48px)", padding: "10px 12px", borderRadius: 10, background: "rgba(25,25,32,.98)", border: "1px solid rgba(99,102,241,.9)", boxShadow: "0 8px 24px rgba(0,0,0,.42)", color: "#fff", fontFamily: "system-ui,sans-serif", pointerEvents: "auto" }}
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
+      onMouseMove={(event) => event.stopPropagation()}
       onMouseUp={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
     >
       <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>錄影控制</span>
       <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, whiteSpace: "nowrap" }}>
         <input type="checkbox" checked={recordAudio} onChange={(event) => onRecordAudioChange(event.target.checked)} />麥克風
       </label>
+      {recordAudio && (
+        <select
+          value={microphoneDeviceId}
+          onChange={(event) => onMicrophoneDeviceChange(event.target.value)}
+          title="選擇錄影使用的麥克風"
+          style={{ maxWidth: 260, fontSize: 12 }}
+        >
+          <option value="">跟隨 Windows 預設麥克風</option>
+          {audioInputDevices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.name}{device.isDefault ? "（預設）" : ""}
+            </option>
+          ))}
+        </select>
+      )}
       <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, whiteSpace: "nowrap" }}>
         <input type="checkbox" checked={recordSystemAudio} onChange={(event) => onRecordSystemAudioChange(event.target.checked)} />系統聲音
       </label>

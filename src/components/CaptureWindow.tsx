@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-
+import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { resolveMicrophoneDeviceId, type AudioInputDeviceInfo } from "../audio";
 import { getCanvasOverlayPosition } from "../editor/geometry";
 import { cropCanvasToBase64 } from "../editor/imageExport";
 import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
@@ -43,6 +44,18 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [editorImageSize, setEditorImageSize] = useState<{ width: number; height: number } | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
+
+  // The capture/editor surface is intentionally dark. Opening an existing
+  // image reuses the main WebView, whose light-theme data attribute otherwise
+  // survives the hash-route transition and makes dark-surface text unreadable.
+  useEffect(() => {
+    const previousTheme = document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = "dark";
+    return () => {
+      if (previousTheme) document.documentElement.dataset.theme = previousTheme;
+      else delete document.documentElement.dataset.theme;
+    };
+  }, []);
 
   // Canvas Refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -116,9 +129,38 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [recordAudio, setRecordAudio] = useState(false);
   const [recordSystemAudio, setRecordSystemAudio] = useState(false);
   const [recordingFps, setRecordingFps] = useState(30);
+  const [audioInputDevices, setAudioInputDevices] = useState<AudioInputDeviceInfo[]>([]);
+  const [microphoneDeviceId, setMicrophoneDeviceId] = useState("");
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [saveFormat, setSaveFormat] = useState<"png" | "jpg">("png");
   const isRecordMode = mode.toLowerCase().includes("record");
+
+  useEffect(() => {
+    if (!isRecordMode) return;
+    let disposed = false;
+    const prepare = async () => {
+      try {
+        const [devices, config] = await Promise.all([
+          invoke<AudioInputDeviceInfo[]>("list_audio_input_devices"),
+          invoke<{ microphone_device_id?: string | null }>("load_config"),
+        ]);
+        if (disposed) return;
+        setAudioInputDevices(devices);
+        setMicrophoneDeviceId((current) => {
+          const preferred = current || config.microphone_device_id || "";
+          return resolveMicrophoneDeviceId(preferred, devices);
+        });
+      } catch (error) {
+        console.error("Failed to prepare microphone selection:", error);
+      }
+    };
+    void prepare();
+    const timer = window.setInterval(() => void prepare(), 2500);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [isRecordMode]);
   const [isStitchedResult, setIsStitchedResult] = useState(false);
   const handleWindowScrollCapture = useScrollCapture({
     label,
@@ -156,6 +198,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
     canvasRef,
     recordAudio,
     recordSystemAudio,
+    microphoneDeviceId,
     recordingFps,
     showToast,
   });
@@ -397,6 +440,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
           onRecordAudioChange={setRecordAudio}
           recordSystemAudio={recordSystemAudio}
           onRecordSystemAudioChange={setRecordSystemAudio}
+          audioInputDevices={audioInputDevices}
+          microphoneDeviceId={microphoneDeviceId}
+          onMicrophoneDeviceChange={setMicrophoneDeviceId}
           fps={recordingFps}
           onFpsChange={setRecordingFps}
           isStarting={isStartingRecording}

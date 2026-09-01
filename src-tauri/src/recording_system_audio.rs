@@ -30,7 +30,7 @@ impl SystemAudioCapture {
 mod windows_impl {
     use super::AudioSamples;
     use std::collections::VecDeque;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread::{self, JoinHandle};
     use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
@@ -39,6 +39,7 @@ mod windows_impl {
         stop: Arc<AtomicBool>,
         join: Option<JoinHandle<Result<(), String>>>,
         samples: Arc<Mutex<Vec<f32>>>,
+        first_packet_timestamp_100ns: Arc<AtomicU64>,
         pub channels: u16,
         pub sample_rate: u32,
     }
@@ -46,15 +47,22 @@ mod windows_impl {
     pub fn start_system_audio_capture() -> Result<SystemAudioCapture, String> {
         let stop = Arc::new(AtomicBool::new(false));
         let samples = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let first_packet_timestamp_100ns = Arc::new(AtomicU64::new(0));
         let startup_stop = Arc::clone(&stop);
         let worker_stop = Arc::clone(&stop);
         let worker_samples = Arc::clone(&samples);
+        let worker_first_packet_timestamp = Arc::clone(&first_packet_timestamp_100ns);
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
 
         let join = thread::Builder::new()
             .name("UniSnap-WASAPI-loopback".to_string())
             .spawn(move || {
-                if let Err(error) = capture_loop(worker_stop, worker_samples, ready_tx.clone()) {
+                if let Err(error) = capture_loop(
+                    worker_stop,
+                    worker_samples,
+                    worker_first_packet_timestamp,
+                    ready_tx.clone(),
+                ) {
                     let _ = ready_tx.send(Err(error.clone()));
                     Err(error)
                 } else {
@@ -68,6 +76,7 @@ mod windows_impl {
                 stop: startup_stop,
                 join: Some(join),
                 samples,
+                first_packet_timestamp_100ns,
                 channels,
                 sample_rate,
             }),
@@ -100,6 +109,13 @@ mod windows_impl {
                 samples,
                 channels: self.channels,
                 sample_rate: self.sample_rate,
+                start_timestamp_100ns: match self
+                    .first_packet_timestamp_100ns
+                    .load(Ordering::Acquire)
+                {
+                    0 => None,
+                    timestamp => Some(timestamp),
+                },
             })
         }
     }
@@ -107,6 +123,7 @@ mod windows_impl {
     fn capture_loop(
         stop: Arc<AtomicBool>,
         samples: Arc<Mutex<Vec<f32>>>,
+        first_packet_timestamp_100ns: Arc<AtomicU64>,
         ready_tx: mpsc::SyncSender<Result<(u32, u16), String>>,
     ) -> Result<(), String> {
         initialize_mta()
@@ -157,11 +174,30 @@ mod windows_impl {
         let block_align = desired_format.get_blockalign() as usize;
         let mut queue = VecDeque::new();
         while !stop.load(Ordering::Acquire) {
-            capture_client
+            let buffer_info = capture_client
                 .read_from_device_to_deque(&mut queue)
                 .map_err(|e| format!("讀取 WASAPI loopback 音訊失敗：{e}"))?;
             let usable_bytes = queue.len() - (queue.len() % block_align);
             if usable_bytes > 0 {
+                let has_timestamp = first_packet_timestamp_100ns.load(Ordering::Acquire) > 0;
+                let timestamp_is_valid =
+                    !buffer_info.flags.timestamp_error && buffer_info.timestamp > 0;
+                if !has_timestamp && !timestamp_is_valid {
+                    // Samples without a QPC anchor cannot be placed on the
+                    // video timeline. Discard only the unanchored prefix and
+                    // begin with the first valid packet.
+                    queue.clear();
+                    let _ = event.wait_for_event(100);
+                    continue;
+                }
+                if timestamp_is_valid {
+                    let _ = first_packet_timestamp_100ns.compare_exchange(
+                        0,
+                        buffer_info.timestamp,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    );
+                }
                 let mut bytes = Vec::with_capacity(usable_bytes);
                 for _ in 0..usable_bytes {
                     bytes.push(queue.pop_front().expect("WASAPI queue length checked"));

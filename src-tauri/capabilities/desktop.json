@@ -28,6 +28,7 @@
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-write-image",
     "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "core:event:allow-emit",
     "allow-app-commands"
   ]

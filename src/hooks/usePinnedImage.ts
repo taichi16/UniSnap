@@ -1,5 +1,6 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 interface ImageSize {
   width: number;
@@ -37,18 +38,22 @@ export function usePinnedImage(
             setEditorImageSize({ width: img.width, height: img.height });
           }
           setImageLoaded(true);
+          const currentWindow = getCurrentWindow();
+          void currentWindow.show().then(() => currentWindow.setFocus());
           if (mode === "edit" || mode === "edit-main") {
             setCropRect({ x: 0, y: 0, w: img.width, h: img.height });
           }
         };
         img.onerror = (e) => {
           console.error("[usePinnedImage] image failed to load from data URL:", e);
+          void invoke("close_capture_windows");
         };
         // Register before assigning src so cached local images still initialise
         // the editor selection and toolbar state correctly.
         img.src = data;
       } catch (err) {
         console.error("[usePinnedImage] get_pinned_image failed for label:", label, "error:", err);
+        void invoke("close_capture_windows");
       }
     }
     if (label) fetchScreenshot();

@@ -48,7 +48,7 @@ async function sourceFiles(directory) {
 const frontend = new Set();
 for (const path of await sourceFiles("src")) {
   const source = await readFile(path, "utf8");
-  for (const [, command] of source.matchAll(/invoke\(\s*["'`]([^"'`]+)["'`]/g)) {
+  for (const [, command] of source.matchAll(/invoke(?:<[^>]+>)?\(\s*["'`]([^"'`]+)["'`]/g)) {
     frontend.add(command);
   }
 }

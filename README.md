@@ -1,5 +1,10 @@
 # UniSnap-Windows
 
+目前 Windows 應用版本為 V2.0。
+
+- [Windows V2.0 本次改版與修正紀錄](docs/WINDOWS_V2_CHANGELOG.md)
+- [Windows V2 錄影可靠性設計](docs/WINDOWS_V2_RECORDING_RELIABILITY.md)
+
 UniSnap 的 Windows 獨立專案。此目錄與 macOS 專案完全分離：
 
 - macOS 專案：`/Users/taichi/AI/screenshot`
