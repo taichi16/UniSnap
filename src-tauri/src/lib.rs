@@ -20,6 +20,7 @@ mod recording_wgc;
 mod scroll_composite;
 mod scroll_masks;
 mod scroll_matching;
+mod system_fonts;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +31,64 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 // State to share base64 images with dynamically created pin windows
 pub struct PinnedImageState(pub Mutex<HashMap<String, String>>);
 pub struct ExitRequested(pub AtomicBool);
+pub struct CloseToTrayState(pub AtomicBool);
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct ShortcutBindingSet {
+    screenshot: String,
+    recording: String,
+}
+
+pub struct ShortcutRegistrationState(Mutex<ShortcutBindingSet>);
+
+#[derive(Clone, Copy)]
+enum ShortcutAction {
+    Screenshot,
+    Recording,
+}
+
+fn register_configured_shortcut(
+    app: &AppHandle,
+    shortcut: &str,
+    action: ShortcutAction,
+) -> Result<(), String> {
+    if shortcut.is_empty() {
+        return Ok(());
+    }
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |app, _, event| {
+            if event.state != ShortcutState::Pressed {
+                return;
+            }
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mode = match action {
+                    ShortcutAction::Screenshot => None,
+                    ShortcutAction::Recording => Some("record".to_string()),
+                };
+                if let Err(error) = crate::capture::trigger_screenshot(handle, mode, None) {
+                    eprintln!("[shortcut] 啟動擷取失敗：{error}");
+                }
+            });
+        })
+        .map_err(|error| format!("快捷鍵 '{shortcut}' 註冊失敗：{error}"))
+}
+
+fn unregister_configured_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), String> {
+    if shortcut.is_empty() {
+        return Ok(());
+    }
+    app.global_shortcut()
+        .unregister(shortcut)
+        .map_err(|error| format!("快捷鍵 '{shortcut}' 解除失敗：{error}"))
+}
+
+fn binding_entries(bindings: &ShortcutBindingSet) -> [(String, ShortcutAction); 2] {
+    [
+        (bindings.screenshot.clone(), ShortcutAction::Screenshot),
+        (bindings.recording.clone(), ShortcutAction::Recording),
+    ]
+}
 
 /// Register shortcuts at the native application layer. This deliberately does
 /// not depend on a particular WebView being focused or even mounted.
@@ -37,67 +96,67 @@ pub(crate) fn apply_global_shortcuts(
     app: &AppHandle,
     settings: &config::AppConfig,
 ) -> Result<(), String> {
-    let shortcuts = app.global_shortcut();
-    let _ = shortcuts.unregister_all();
-
     let screenshot = settings.shortcut_screenshot.trim().to_string();
     let recording = settings.shortcut_recording.trim().to_string();
     if !screenshot.is_empty() && screenshot.eq_ignore_ascii_case(&recording) {
         return Err("Screenshot and recording shortcuts must be different".to_string());
     }
-    if !screenshot.is_empty() {
-        if let Err(e) = shortcuts.on_shortcut(screenshot.as_str(), |app, _, event| {
-            if event.state == ShortcutState::Pressed {
-                let handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = crate::capture::trigger_screenshot(handle.clone(), None, None);
-                });
+    let next = ShortcutBindingSet {
+        screenshot,
+        recording,
+    };
+    let registration = app.state::<ShortcutRegistrationState>();
+    let mut current = registration
+        .0
+        .lock()
+        .map_err(|_| "無法鎖定快捷鍵更新狀態".to_string())?;
+    let previous = current.clone();
+    if previous == next {
+        return Ok(());
+    }
+
+    let mut removed: Vec<(String, ShortcutAction)> = Vec::new();
+    for (shortcut, action) in binding_entries(&previous) {
+        if let Err(error) = unregister_configured_shortcut(app, &shortcut) {
+            for (removed_shortcut, removed_action) in removed {
+                let _ = register_configured_shortcut(app, &removed_shortcut, removed_action);
             }
-        }) {
-            eprintln!(
-                "[shortcut] 警告：無法註冊截圖快捷鍵 '{}' (可能已被其他程式佔用)：{e}",
-                screenshot
-            );
-            return Err(format!(
-                "Could not register screenshot shortcut '{screenshot}': {e}"
-            ));
+            return Err(error);
+        }
+        if !shortcut.is_empty() {
+            removed.push((shortcut, action));
         }
     }
 
-    if !recording.is_empty() {
-        if let Err(e) = shortcuts.on_shortcut(recording.as_str(), |app, _, event| {
-            if event.state == ShortcutState::Pressed {
-                let handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = crate::capture::trigger_screenshot(
-                        handle.clone(),
-                        Some("record".to_string()),
-                        None,
-                    );
-                });
+    let mut registered: Vec<(String, ShortcutAction)> = Vec::new();
+    for (shortcut, action) in binding_entries(&next) {
+        if let Err(error) = register_configured_shortcut(app, &shortcut, action) {
+            for (new_shortcut, _) in &registered {
+                let _ = unregister_configured_shortcut(app, new_shortcut);
             }
-        }) {
-            eprintln!(
-                "[shortcut] 警告：無法註冊錄影快捷鍵 '{}' (可能已被其他程式佔用)：{e}",
-                recording
-            );
-            return Err(format!(
-                "Could not register recording shortcut '{recording}': {e}"
-            ));
+            let mut restore_errors = Vec::new();
+            for (old_shortcut, old_action) in binding_entries(&previous) {
+                if let Err(restore_error) =
+                    register_configured_shortcut(app, &old_shortcut, old_action)
+                {
+                    restore_errors.push(restore_error);
+                }
+            }
+            return if restore_errors.is_empty() {
+                Err(error)
+            } else {
+                Err(format!(
+                    "{error}；恢復原快捷鍵也失敗：{}",
+                    restore_errors.join("；")
+                ))
+            };
+        }
+        if !shortcut.is_empty() {
+            registered.push((shortcut, action));
         }
     }
 
-    // Escape is intentionally kept as a native route because the capture
-    // window may be hidden during an automatic scroll operation.
-    if let Err(e) = shortcuts.on_shortcut("Escape", |app, _, event| {
-        if event.state == ShortcutState::Pressed {
-            let _ = app.emit("global-escape", ());
-            let state = app.state::<PinnedImageState>();
-            let _ = crate::capture::close_capture_windows(app.clone(), state);
-        }
-    }) {
-        eprintln!("[shortcut] 警告：無法註冊 Escape 快捷鍵：{e}");
-    }
+    *current = next;
 
     println!(
         "[shortcut] registered screenshot='{}' recording='{}' escape='Escape'",
@@ -106,9 +165,32 @@ pub(crate) fn apply_global_shortcuts(
     Ok(())
 }
 
+fn register_escape_shortcut(app: &AppHandle) {
+    // Escape is stable for the lifetime of the process. Keeping it outside
+    // configurable re-registration avoids removing it during settings edits.
+    if let Err(error) = app
+        .global_shortcut()
+        .on_shortcut("Escape", |app, _, event| {
+            if event.state == ShortcutState::Pressed {
+                let _ = app.emit("global-escape", ());
+                let state = app.state::<PinnedImageState>();
+                let _ = crate::capture::close_capture_windows(app.clone(), state);
+            }
+        })
+    {
+        eprintln!("[shortcut] 警告：無法註冊 Escape 快捷鍵：{error}");
+    }
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn quit_application(app: AppHandle) {
+    app.state::<ExitRequested>().0.store(true, Ordering::SeqCst);
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -223,6 +305,10 @@ pub fn run() {
         }))
         .manage(PinnedImageState(Mutex::new(HashMap::new())))
         .manage(ExitRequested(AtomicBool::new(false)))
+        .manage(CloseToTrayState(AtomicBool::new(false)))
+        .manage(ShortcutRegistrationState(Mutex::new(
+            ShortcutBindingSet::default(),
+        )))
         .manage(record::RecordingState::new())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
@@ -231,11 +317,15 @@ pub fn run() {
         .setup(|app| {
             let settings = config::load_config(app.handle().clone())
                 .map_err(|e| format!("載入快捷鍵設定失敗：{e}"))?;
+            app.state::<CloseToTrayState>()
+                .0
+                .store(settings.close_to_tray, Ordering::SeqCst);
             if let Err(error) = apply_global_shortcuts(app.handle(), &settings) {
                 // A stale shortcut may be owned by another process. Keep the
                 // app usable so the user can choose a new key in Settings.
                 eprintln!("[shortcut] startup registration failed: {error}");
             }
+            register_escape_shortcut(app.handle());
 
             // Setup Tray Icon & Menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -251,11 +341,19 @@ pub fn run() {
                 .build()?;
 
             if let Some(main) = app.get_webview_window("main") {
-                let close_to_tray = settings.close_to_tray;
+                let app_for_close = app.handle().clone();
                 let main_for_close = main.clone();
                 main.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        if close_to_tray {
+                        let exit_requested = app_for_close
+                            .state::<ExitRequested>()
+                            .0
+                            .load(Ordering::SeqCst);
+                        let close_to_tray = app_for_close
+                            .state::<CloseToTrayState>()
+                            .0
+                            .load(Ordering::SeqCst);
+                        if close_to_tray && !exit_requested {
                             api.prevent_close();
                             let _ = main_for_close.hide();
                         }
@@ -298,6 +396,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            quit_application,
             log_from_frontend,
             capture::list_monitors,
             capture::capture_screens,
@@ -318,6 +417,7 @@ pub fn run() {
             config::save_config,
             recording_audio::list_audio_input_devices,
             recording_audio::test_audio_input_device,
+            system_fonts::list_system_fonts,
             record::start_recording,
             record::stop_recording,
             record::get_recording_status,

@@ -3,6 +3,7 @@ identifier = "allow-app-commands"
 description = "Allows all custom commands defined in the application"
 commands.allow = [
   "greet",
+  "quit_application",
   "log_from_frontend",
   "list_monitors",
   "capture_screens",
@@ -24,6 +25,7 @@ commands.allow = [
   "load_config",
   "list_audio_input_devices",
   "test_audio_input_device",
+  "list_system_fonts",
   "start_recording",
   "stop_recording",
   "get_recording_status",

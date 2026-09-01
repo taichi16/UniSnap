@@ -40,4 +40,11 @@ if ($Release) {
     Invoke-CheckedNative { npm run tauri build -- --debug } "Debug bundle"
 }
 
-Write-Host "Build completed. Inspect src-tauri/target/release/bundle or src-tauri/target/debug/bundle."
+$targetRoot = if ($env:CARGO_TARGET_DIR) {
+    [System.IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
+} else {
+    Join-Path $projectRoot "src-tauri\target"
+}
+$profile = if ($Release) { "release" } else { "debug" }
+$bundlePath = Join-Path $targetRoot "$profile\bundle"
+Write-Host "Build completed. Inspect $bundlePath."

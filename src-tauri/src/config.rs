@@ -2,6 +2,7 @@ use crate::platform::windows::{DEFAULT_RECORDING_SHORTCUT, DEFAULT_SCREENSHOT_SH
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Manager};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -26,7 +27,7 @@ fn default_theme() -> String {
 }
 
 fn default_close_to_tray() -> bool {
-    true
+    false
 }
 
 fn shortcuts_changed(previous: &AppConfig, next: &AppConfig) -> bool {
@@ -109,15 +110,18 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     // independently savable even when a shortcut is owned by another app.
     if shortcuts_changed(&previous, &config) {
         // Do not persist a shortcut Windows rejected because another
-        // application already owns it. Restore the old bindings first.
+        // application already owns it. apply_global_shortcuts is transactional
+        // and restores the previous bindings before returning an error.
         if let Err(error) = crate::apply_global_shortcuts(&app, &config) {
-            let _ = crate::apply_global_shortcuts(&app, &previous);
             return Err(error);
         }
     }
     let json =
         serde_json::to_string_pretty(&config).map_err(|e| format!("Serialize error: {}", e))?;
     fs::write(&path, json).map_err(|e| format!("Write config file error: {}", e))?;
+    app.state::<crate::CloseToTrayState>()
+        .0
+        .store(config.close_to_tray, Ordering::SeqCst);
     Ok(())
 }
 
@@ -141,5 +145,10 @@ mod tests {
         next.shortcut_recording = "Alt+Shift+R".to_string();
 
         assert!(shortcuts_changed(&previous, &next));
+    }
+
+    #[test]
+    fn new_install_exits_when_main_window_is_closed() {
+        assert!(!AppConfig::default().close_to_tray);
     }
 }

@@ -1,9 +1,9 @@
-import { useState, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { emit, listen } from "@tauri-apps/api/event";
 import { availableMonitors, getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon, Mic, X } from "lucide-react";
+import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon, Mic, Power, X } from "lucide-react";
 import type { AudioInputDeviceInfo, AudioInputTestResult } from "../audio";
 
 interface AppConfig {
@@ -75,6 +75,8 @@ export default function MainWindow() {
   const [audioInputDevices, setAudioInputDevices] = useState<AudioInputDeviceInfo[]>([]);
   const [microphoneStatus, setMicrophoneStatus] = useState<string | null>(null);
   const [testingMicrophone, setTestingMicrophone] = useState(false);
+  const shortcutSaveInFlight = useRef(false);
+  const [shortcutSaving, setShortcutSaving] = useState(false);
 
   useEffect(() => {
     if (!showHelp && !showAbout) return;
@@ -191,15 +193,43 @@ export default function MainWindow() {
     resizeWindow();
   }, [showSettings]);
 
-  const saveSettings = async (updatedConfig: AppConfig) => {
+  const saveSettings = async (updatedConfig: AppConfig): Promise<boolean> => {
     try {
       await invoke("save_config", { config: updatedConfig });
       setConfig(updatedConfig);
       await emit("config-updated");
       showToast("設定已儲存！");
+      return true;
     } catch (err) {
       console.error("Failed to save config:", err);
-      showToast("儲存設定失敗");
+      showToast(`儲存設定失敗：${String(err)}`);
+      return false;
+    }
+  };
+
+  const saveShortcut = async (
+    field: "shortcut_screenshot" | "shortcut_recording",
+    shortcut: string,
+  ) => {
+    if (shortcutSaveInFlight.current) {
+      showToast("快捷鍵正在套用，請稍候");
+      return;
+    }
+    const other = field === "shortcut_screenshot"
+      ? config.shortcut_recording
+      : config.shortcut_screenshot;
+    if (shortcut.toLocaleLowerCase() === other.trim().toLocaleLowerCase()) {
+      showToast("截圖與錄影快捷鍵不可相同");
+      return;
+    }
+
+    shortcutSaveInFlight.current = true;
+    setShortcutSaving(true);
+    try {
+      await saveSettings({ ...config, [field]: shortcut });
+    } finally {
+      shortcutSaveInFlight.current = false;
+      setShortcutSaving(false);
     }
   };
 
@@ -495,6 +525,17 @@ export default function MainWindow() {
                 <span className="slider"></span>
               </label>
             </div>
+            <div className="form-group" style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void invoke("quit_application")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7 }}
+              >
+                <Power size={15} />
+                完全結束 UniSnap
+              </button>
+            </div>
           </section>
 
           <section className="settings-section">
@@ -560,28 +601,26 @@ export default function MainWindow() {
               <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>截圖</span>
-                  <input type="text" readOnly value={config.shortcut_screenshot as string}
+                  <input type="text" readOnly disabled={shortcutSaving} value={config.shortcut_screenshot as string}
                     onKeyDown={(e) => {
+                      if (e.repeat) return;
                       const shortcut = shortcutFromKeyEvent(e);
                       if (!shortcut) return;
                       e.preventDefault();
-                      const updated = { ...config, shortcut_screenshot: shortcut };
-                      setConfig(updated);
-                      void saveSettings(updated);
+                      void saveShortcut("shortcut_screenshot", shortcut);
                     }}
                     placeholder="按下要使用的組合鍵"
                     style={{ marginTop: 4, width: "100%", cursor: "crosshair" }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>錄影</span>
-                  <input type="text" readOnly value={config.shortcut_recording as string}
+                  <input type="text" readOnly disabled={shortcutSaving} value={config.shortcut_recording as string}
                     onKeyDown={(e) => {
+                      if (e.repeat) return;
                       const shortcut = shortcutFromKeyEvent(e);
                       if (!shortcut) return;
                       e.preventDefault();
-                      const updated = { ...config, shortcut_recording: shortcut };
-                      setConfig(updated);
-                      void saveSettings(updated);
+                      void saveShortcut("shortcut_recording", shortcut);
                     }}
                     placeholder="按下要使用的組合鍵"
                     style={{ marginTop: 4, width: "100%", cursor: "crosshair" }} />

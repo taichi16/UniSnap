@@ -15,7 +15,7 @@ use crate::h264_sample::{extract_h264_sample, H264Sample};
 use crate::platform::windows::{validate_recording_fps, validate_recording_options};
 use crate::recording_crop::{crop_rgba, crop_rgba_into, resolve_crop_from_canvas, Crop};
 use crate::recording_mp4::{add_audio_track, add_video_track, write_sample as write_mp4_sample};
-use crate::recording_output::recording_output_path;
+use crate::recording_output::{recording_output_path, recording_staging_path};
 use crate::recording_session::{RecordingPoll, RecordingSession, RecordingState as SessionState};
 use crate::recording_timing::{elapsed_sample_duration, RecordingClock};
 use mp4::{Bytes, ChannelConfig, FourCC, Mp4Config, Mp4Writer, SampleFreqIndex, TrackType};
@@ -289,7 +289,7 @@ pub fn start_recording(
     let (finished_tx, finished_rx) = mpsc::channel();
     let (ready_tx, ready_rx) = mpsc::channel();
     let worker_path = output_path.clone();
-    let worker_partial_path = output_path.with_extension("partial.mp4");
+    let worker_partial_path = recording_staging_path(&app, &output_path)?;
     let safe_fps = fps;
     std::thread::spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -956,7 +956,7 @@ fn remux_media_foundation_video(
             return Err("Windows MP4 音訊必須為 44.1 kHz 雙聲道".to_string());
         }
     }
-    let source_file = File::open(video_path).map_err(|e| format!("開啟暫存影片失敗：{e}"))?;
+    let source_file = open_completed_temp_video(video_path)?;
     let source_size = source_file
         .metadata()
         .map_err(|e| format!("讀取暫存影片資訊失敗：{e}"))?
@@ -1083,6 +1083,33 @@ fn remux_media_foundation_video(
         let _ = fs::remove_file(&mux_path);
     }
     mux_result
+}
+
+#[cfg(target_os = "windows")]
+fn open_completed_temp_video(path: &std::path::Path) -> Result<File, String> {
+    let started = std::time::Instant::now();
+    loop {
+        match File::open(path) {
+            Ok(file) => return Ok(file),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+                ) && started.elapsed() < Duration::from_secs(2) =>
+            {
+                // Windows Defender and third-party endpoint security can hold a
+                // newly finalized MP4 briefly. Retrying here prevents a valid
+                // recording from being discarded because of that short race.
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(error) => {
+                return Err(format!(
+                    "開啟本機暫存影片失敗（{}）：{error}",
+                    path.display()
+                ));
+            }
+        }
+    }
 }
 
 #[cfg(all(target_os = "windows", test))]

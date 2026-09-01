@@ -1,10 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import type { ArrowStyle, Tool } from "../editor/types";
-
-interface FontOption {
-  label: string;
-  value: string;
-}
+import type { FontOption } from "../editor/fonts";
+import FontPicker from "./FontPicker";
 
 interface ToolOptionsPopoverProps {
   activeTool: Tool;
@@ -14,6 +11,8 @@ interface ToolOptionsPopoverProps {
   onChooseColor: (color: string) => void;
   textFont: string;
   fontOptions: FontOption[];
+  fontOptionsLoading: boolean;
+  fontOptionsError: string | null;
   onTextFontChange: (font: string) => void;
   strokeWidth: number;
   onStrokeWidthChange: (width: number) => void;
@@ -37,6 +36,8 @@ export default function ToolOptionsPopover({
   onChooseColor,
   textFont,
   fontOptions,
+  fontOptionsLoading,
+  fontOptionsError,
   onTextFontChange,
   strokeWidth,
   onStrokeWidthChange,
@@ -68,10 +69,13 @@ export default function ToolOptionsPopover({
 
       {!showColorPalette && activeTool === "text" && (
         <div className="sub-toolbar">
-          <label>字型:</label>
-          <select value={textFont} onChange={(event) => onTextFontChange(event.target.value)} style={{ fontSize: 11, background: "rgba(30,30,40,0.8)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 4px", cursor: "pointer" }}>
-            {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-          </select>
+          <FontPicker
+            value={textFont}
+            options={fontOptions}
+            loading={fontOptionsLoading}
+            error={fontOptionsError}
+            onChange={onTextFontChange}
+          />
           <label style={{ marginLeft: 8 }}>大小:</label>
           <input type="range" min="1" max="12" value={strokeWidth} style={{ width: 60, accentColor: "var(--accent-color)" }} onChange={(event) => onStrokeWidthChange(parseInt(event.target.value))} />
           <span style={{ fontSize: 11, minWidth: 28 }}>{strokeWidth * 6}px</span>

@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run verify:ui-theme && tsc && vite build",
+    "build": "npm run verify:ui-theme && npm run verify:fonts && npm run verify:shortcuts && tsc && vite build",
     "verify:ui-theme": "node scripts/verify-ui-theme-contract.mjs",
+    "verify:fonts": "node scripts/verify-font-contract.mjs",
+    "verify:shortcuts": "node scripts/verify-shortcut-contract.mjs",
     "verify:contracts": "node scripts/verify-command-contract.mjs",
     "preview": "vite preview",
     "tauri": "tauri"

@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { resolveMicrophoneDeviceId, type AudioInputDeviceInfo } from "../audio";
-import { getCanvasOverlayPosition } from "../editor/geometry";
 import { cropCanvasToBase64 } from "../editor/imageExport";
-import { EDITOR_COLORS, EDITOR_FONT_OPTIONS } from "../editor/constants";
+import { EDITOR_COLORS } from "../editor/constants";
+import { DEFAULT_TEXT_FONT } from "../editor/fonts";
 import type { ArrowStyle, CaptureWindowProps, Point, Shape, Tool } from "../editor/types";
 import EditorActions from "./EditorActions";
 import EditorToolButtons from "./EditorToolButtons";
+import CanvasTextInput from "./CanvasTextInput";
 import ExpandCanvasDialog from "./ExpandCanvasDialog";
 import OcrResultModal from "./OcrResultModal";
 import RecordingSelectionControls from "./RecordingSelectionControls";
@@ -38,6 +37,8 @@ import { useScrollCapture } from "../hooks/useScrollCapture";
 import { useAnnotationActions } from "../hooks/useAnnotationActions";
 import { useEditorPointerHandlers } from "../hooks/useEditorPointerHandlers";
 import { useEditorLayout } from "../hooks/useEditorLayout";
+import { useRecordingPreferences } from "../hooks/useRecordingPreferences";
+import { useSystemFonts } from "../hooks/useSystemFonts";
 export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -81,8 +82,7 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [mosaicIntensity, setMosaicIntensity] = useState(10);
   const [lineStyle, setLineStyle] = useState<"solid" | "dashed">("solid");
   const [arrowStyle, setArrowStyle] = useState<ArrowStyle>("single");
-  // Fix 1: Font selection for text tool
-  const [textFont, setTextFont] = useState("Inter, sans-serif");
+  const [textFont, setTextFont] = useState(DEFAULT_TEXT_FONT);
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [currentShape, setCurrentShape] = useState<Shape | null>(null);
 
@@ -126,41 +126,15 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
   const [isStitching, setIsStitching] = useState(false);
 
   // Screen Recording State
-  const [recordAudio, setRecordAudio] = useState(false);
-  const [recordSystemAudio, setRecordSystemAudio] = useState(false);
-  const [recordingFps, setRecordingFps] = useState(30);
-  const [audioInputDevices, setAudioInputDevices] = useState<AudioInputDeviceInfo[]>([]);
-  const [microphoneDeviceId, setMicrophoneDeviceId] = useState("");
-  const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [saveFormat, setSaveFormat] = useState<"png" | "jpg">("png");
   const isRecordMode = mode.toLowerCase().includes("record");
-
-  useEffect(() => {
-    if (!isRecordMode) return;
-    let disposed = false;
-    const prepare = async () => {
-      try {
-        const [devices, config] = await Promise.all([
-          invoke<AudioInputDeviceInfo[]>("list_audio_input_devices"),
-          invoke<{ microphone_device_id?: string | null }>("load_config"),
-        ]);
-        if (disposed) return;
-        setAudioInputDevices(devices);
-        setMicrophoneDeviceId((current) => {
-          const preferred = current || config.microphone_device_id || "";
-          return resolveMicrophoneDeviceId(preferred, devices);
-        });
-      } catch (error) {
-        console.error("Failed to prepare microphone selection:", error);
-      }
-    };
-    void prepare();
-    const timer = window.setInterval(() => void prepare(), 2500);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [isRecordMode]);
+  const {
+    recordAudio, setRecordAudio, recordSystemAudio, setRecordSystemAudio,
+    recordingFps, setRecordingFps, audioInputDevices,
+    microphoneDeviceId, setMicrophoneDeviceId,
+    isStartingRecording, setIsStartingRecording,
+  } = useRecordingPreferences(isRecordMode);
+  const systemFonts = useSystemFonts(activeTool === "text" && !isRecordMode);
   const [isStitchedResult, setIsStitchedResult] = useState(false);
   const handleWindowScrollCapture = useScrollCapture({
     label,
@@ -389,36 +363,16 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
       {/* HTML text input overlay on canvas */}
       {textInput && (
-        <textarea
-          ref={textInputRef}
-          className="canvas-text-input"
-          value={textInput.text}
-          onChange={(e) => setTextInput({ ...textInput, text: e.target.value })}
+        <CanvasTextInput
+          draft={textInput}
+          onDraftChange={setTextInput}
           onBlur={handleTextInputBlur}
-          style={{
-            top: (() => {
-              const canvas = canvasRef.current;
-              const container = canvas?.parentElement;
-              if (!canvas || !container) return textInput.y;
-              const canvasRect = canvas.getBoundingClientRect();
-              const containerRect = container.getBoundingClientRect();
-              return getCanvasOverlayPosition(textInput, canvas, canvasRect, containerRect, isScrollableEditor).y;
-            })(),
-            left: (() => {
-              const canvas = canvasRef.current;
-              const container = canvas?.parentElement;
-              if (!canvas || !container) return textInput.x;
-              const canvasRect = canvas.getBoundingClientRect();
-              const containerRect = container.getBoundingClientRect();
-              return getCanvasOverlayPosition(textInput, canvas, canvasRect, containerRect, isScrollableEditor).x;
-            })(),
-            color: strokeColor,
-            fontSize: `${strokeWidth * 6}px`,
-            fontFamily: textFont,
-            fontWeight: "bold",
-            minWidth: 100,
-            minHeight: 24,
-          }}
+          inputRef={textInputRef}
+          canvasRef={canvasRef}
+          isScrollableEditor={isScrollableEditor}
+          color={strokeColor}
+          fontSize={strokeWidth * 6}
+          fontFamily={textFont}
         />
       )}
 
@@ -478,7 +432,9 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
                 strokeColor={strokeColor}
                 onChooseColor={(color) => { setStrokeColor(color); setShowColorPalette(false); }}
                 textFont={textFont}
-                fontOptions={EDITOR_FONT_OPTIONS}
+                fontOptions={systemFonts.options}
+                fontOptionsLoading={systemFonts.loading}
+                fontOptionsError={systemFonts.error}
                 onTextFontChange={setTextFont}
                 strokeWidth={strokeWidth}
                 onStrokeWidthChange={setStrokeWidth}
