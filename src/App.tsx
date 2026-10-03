@@ -5,6 +5,7 @@ import PinWindow from "./components/PinWindow";
 import RecordingControl from "./components/RecordingControl";
 import RecordingStartControl from "./components/RecordingStartControl";
 import QuickAccessWindow from "./components/QuickAccessWindow";
+import IdentifyMonitorWindow from "./components/IdentifyMonitorWindow";
 import "./App.css";
 
 export default function App() {
@@ -28,7 +29,17 @@ export default function App() {
   if (path === "/capture") {
     const label = params.get("label") || "";
     const mode = params.get("mode") || "screenshot";
-    return <CaptureWindow label={label} mode={mode} />;
+    const monitorIndexStr = params.get("monitorIndex");
+    const monitorIndex = monitorIndexStr !== null ? parseInt(monitorIndexStr, 10) : undefined;
+    return <CaptureWindow label={label} mode={mode} monitorIndex={monitorIndex} />;
+  }
+
+  if (path === "/identify-monitor") {
+    const index = parseInt(params.get("index") || "0", 10);
+    const number = parseInt(params.get("number") || "1", 10);
+    const width = parseInt(params.get("w") || "0", 10);
+    const height = parseInt(params.get("h") || "0", 10);
+    return <IdentifyMonitorWindow index={index} number={number} width={width} height={height} />;
   }
 
   if (path === "/pin") {

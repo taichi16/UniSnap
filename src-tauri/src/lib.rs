@@ -192,6 +192,8 @@ pub fn run() {
             greet,
             monitor_capture::list_monitors,
             monitor_capture::capture_screens,
+            monitor_capture::identify_monitors,
+            monitor_capture::close_identify_monitors,
             capture_overlay::trigger_screenshot,
             editor_windows::open_image_editor,
             editor_windows::open_image_editor_data,

@@ -1,6 +1,7 @@
 export interface CaptureWindowProps {
   label: string;
   mode?: string;
+  monitorIndex?: number;
 }
 
 export type Tool =

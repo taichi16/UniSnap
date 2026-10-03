@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { Monitor } from "lucide-react";
 
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { getCanvasOverlayPosition } from "../editor/geometry";
@@ -37,7 +38,21 @@ import { useScrollCapture } from "../hooks/useScrollCapture";
 import { useAnnotationActions } from "../hooks/useAnnotationActions";
 import { useEditorPointerHandlers } from "../hooks/useEditorPointerHandlers";
 import { useEditorLayout } from "../hooks/useEditorLayout";
-export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWindowProps) {
+export default function CaptureWindow({ label, mode = "screenshot", monitorIndex }: CaptureWindowProps) {
+  const parsedMonitorIndex = monitorIndex ?? (() => {
+    const match = label.match(/capture_(\d+)_/);
+    return match ? parseInt(match[1], 10) : 0;
+  })();
+
+  const [showMonitorBadge, setShowMonitorBadge] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowMonitorBadge(false);
+    }, 2400);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [editorImageSize, setEditorImageSize] = useState<{ width: number; height: number } | null>(null);
@@ -461,6 +476,19 @@ export default function CaptureWindow({ label, mode = "screenshot" }: CaptureWin
 
 
 
+
+      {/* Visual screen identification badge in capture overlay */}
+      {showMonitorBadge && !cropRect && !isSelecting && (
+        <div className="capture-screen-indicator-badge">
+          <Monitor size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          <span>螢幕 {parsedMonitorIndex + 1}</span>
+          {editorImageSize && (
+            <span className="capture-screen-indicator-res">
+              {editorImageSize.width} × {editorImageSize.height}
+            </span>
+          )}
+        </div>
+      )}
 
       {toastMsg && <ToastMessage message={toastMsg} />}
     </div>

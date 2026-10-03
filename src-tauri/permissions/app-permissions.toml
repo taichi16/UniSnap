@@ -2,6 +2,9 @@
 identifier = "allow-app-commands"
 description = "Allows all custom commands defined in the application"
 commands.allow = [
+  "list_monitors",
+  "identify_monitors",
+  "close_identify_monitors",
   "capture_screens",
   "trigger_screenshot",
   "close_capture_windows",

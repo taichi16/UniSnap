@@ -58,3 +58,90 @@ pub fn capture_screens() -> Result<Vec<MonitorScreenshot>, String> {
         })
         .collect()
 }
+
+#[tauri::command]
+pub fn identify_monitors(
+    app: tauri::AppHandle,
+    monitor_index: Option<usize>,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let monitors = app
+        .available_monitors()
+        .map_err(|e| format!("Failed to list monitors: {}", e))?;
+    if monitors.is_empty() {
+        return Err("No monitors found".to_string());
+    }
+
+    // Destroy any existing identify windows first
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("identify_monitor_") {
+            let _ = win.destroy();
+        }
+    }
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    let indices: Vec<usize> = if let Some(idx) = monitor_index {
+        if idx < monitors.len() {
+            vec![idx]
+        } else {
+            vec![0]
+        }
+    } else {
+        (0..monitors.len()).collect()
+    };
+
+    for index in indices {
+        let monitor = &monitors[index];
+        let scale = monitor.scale_factor().max(1.0);
+        let screen_w = monitor.size().width as f64 / scale;
+        let screen_h = monitor.size().height as f64 / scale;
+        let win_w = 260.0;
+        let win_h = 170.0;
+        let x = monitor.position().x as f64 / scale + (screen_w - win_w) / 2.0;
+        let y = monitor.position().y as f64 / scale + (screen_h - win_h) / 2.0;
+
+        let label = format!("identify_monitor_{}_{}", index, timestamp);
+        let url_str = format!(
+            "index.html#/identify-monitor?index={}&number={}&w={}&h={}",
+            index,
+            index + 1,
+            monitor.size().width,
+            monitor.size().height
+        );
+        let window_url = tauri::WebviewUrl::App(
+            url_str.parse().map_err(|e| format!("URL error: {}", e))?,
+        );
+
+        tauri::WebviewWindowBuilder::new(&app, &label, window_url)
+            .title(format!("Identify Monitor {}", index + 1))
+            .decorations(false)
+            .always_on_top(true)
+            .transparent(true)
+            .resizable(false)
+            .focused(false)
+            .accept_first_mouse(false)
+            .inner_size(win_w, win_h)
+            .position(x, y)
+            .build()
+            .map_err(|e| format!("Failed to build identify window: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_identify_monitors(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("identify_monitor_") {
+            let _ = win.destroy();
+        }
+    }
+    Ok(())
+}
+

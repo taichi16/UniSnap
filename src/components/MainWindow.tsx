@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { emit, listen } from "@tauri-apps/api/event";
 import { availableMonitors, getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon } from "lucide-react";
+import { Folder, Video, Keyboard, Settings, Scissors, Maximize, AppWindow, ScrollText, Monitor, Sun, Moon, CircleHelp, BarChart3, Image as ImageIcon, Eye } from "lucide-react";
 import InfoDialog from "./InfoDialog";
 
 interface AppConfig {
@@ -307,24 +307,42 @@ export default function MainWindow() {
           <span>長截圖</span>
         </button>
         {/* Every capture mode targets the monitor explicitly selected here. */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, flex: "0 0 150px", minWidth: 150 }}>
-          <Monitor size={16} color="#a5b4fc" />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, flex: "0 0 160px", minWidth: 160 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "0 2px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Monitor size={14} color="#a5b4fc" />
+              <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>目標螢幕</span>
+            </div>
+            <button
+              type="button"
+              className="identify-monitor-btn"
+              onClick={() => void invoke("identify_monitors", { monitorIndex: null })}
+              title="在所有螢幕中央顯示代號（識別實體螢幕）"
+            >
+              <Eye size={11} style={{ marginRight: 3 }} />
+              識別
+            </button>
+          </div>
           <select
             value={monitors.length ? selectedMonitor : ""}
-            onChange={(e) => setSelectedMonitor(parseInt(e.target.value))}
+            onChange={(e) => {
+              const idx = parseInt(e.target.value, 10);
+              setSelectedMonitor(idx);
+              void invoke("identify_monitors", { monitorIndex: idx });
+            }}
             disabled={!monitors.length}
             style={{
-              fontSize: 10,
+              fontSize: 11,
               background: "var(--panel-bg)",
               color: "var(--text-primary)",
               border: "1px solid var(--panel-border)",
-              borderRadius: 4,
-              padding: "2px 4px",
+              borderRadius: 5,
+              padding: "3px 6px",
               cursor: "pointer",
               width: "100%",
-              textAlign: "center",
+              textAlign: "left",
             }}
-            title="選擇要截圖的螢幕"
+            title="選擇要截圖的螢幕（切換時會顯示螢幕代號）"
           >
             {!monitors.length && <option value="">{monitorError ?? "正在讀取螢幕…"}</option>}
             {monitors.map((m, i) => (

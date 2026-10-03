@@ -25,7 +25,7 @@ pub fn trigger_screenshot(app: tauri::AppHandle, state: tauri::State<'_, crate::
         let data_url = rgba_to_jpeg_data_url(&image)?;
         let label = format!("capture_{}_{}", index, timestamp);
         state.0.lock().unwrap().insert(label.clone(), data_url);
-        let window_url = WebviewUrl::App(format!("index.html#/capture?label={label}&mode={mode_str}").parse().unwrap());
+        let window_url = WebviewUrl::App(format!("index.html#/capture?label={label}&mode={mode_str}&monitorIndex={index}").parse().unwrap());
         WebviewWindowBuilder::new(&app, &label, window_url)
             .title(format!("Capture Window {}", index)).decorations(false).always_on_top(true).transparent(true).resizable(false).focused(true).accept_first_mouse(true)
             .inner_size(phys_w as f64 / scale_factor, phys_h as f64 / scale_factor)

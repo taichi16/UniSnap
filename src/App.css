@@ -884,3 +884,153 @@ input:checked + .slider:before {
 .permission-banner strong {
   font-weight: 700;
 }
+
+/* Monitor Identification Styles */
+.identify-monitor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.identify-monitor-btn:hover {
+  background: var(--accent-color);
+  color: #ffffff;
+  border-color: var(--accent-color);
+}
+
+body:has(.identify-monitor-container) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.identify-monitor-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  box-sizing: border-box;
+  animation: identifyFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.identify-monitor-container.fading-out {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.identify-monitor-card {
+  width: 230px;
+  height: 140px;
+  background: rgba(17, 17, 24, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 2px solid rgba(99, 102, 241, 0.55);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(99, 102, 241, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 24px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.identify-monitor-number {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  background: linear-gradient(135deg, #ffffff 40%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+}
+
+.identify-monitor-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.identify-monitor-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f3f4f6;
+  display: flex;
+  align-items: center;
+}
+
+.identify-monitor-res {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+
+@keyframes identifyFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Capture Overlay Screen Indicator Badge */
+.capture-screen-indicator-badge {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.25);
+  border-radius: 9999px;
+  padding: 8px 20px;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  animation: badgeFadeIn 0.25s ease-out forwards;
+  transition: opacity 0.3s ease;
+}
+
+.capture-screen-indicator-res {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+@keyframes badgeFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
